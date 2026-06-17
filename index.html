@@ -286,8 +286,20 @@
     return round.matches.find(m => m.id === matchId) || null;
   }
 
+  function snapshot() {
+    // Snapshot only tournament data — must NOT include `history` itself, or each
+    // snapshot grows quadratically and crashes JSON.stringify on a long match.
+    return JSON.stringify({ players: state.players, rounds: state.rounds });
+  }
+
+  function restoreSnapshot(s) {
+    const parsed = JSON.parse(s);
+    state.players = parsed.players;
+    state.rounds = parsed.rounds;
+  }
+
   function pushHistory() {
-    state.history.push(JSON.stringify(state));
+    state.history.push(snapshot());
     if (state.history.length > 50) state.history.shift();
   }
 
@@ -337,7 +349,7 @@
   function undoLastPoint() {
     if (state.history.length === 0) { showError('Nothing to undo'); return; }
     const prev = state.history.pop();
-    state = JSON.parse(prev);
+    restoreSnapshot(prev);
     save();
     render();
   }
