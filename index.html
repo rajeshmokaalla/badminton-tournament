@@ -82,7 +82,7 @@
       <button class="secondary" id="clearPlayersBtn">Clear All</button>
     </div>
     <div class="player-list" id="playerList"></div>
-    <div class="empty" id="playerEmpty">No players added yet. Add at least 4 to start.</div>
+    <div class="empty" id="playerEmpty">No players added yet. Add 6 or 8 players to start (3 or 4 doubles teams).</div>
   </div>
 
   <div class="panel">
@@ -90,7 +90,7 @@
       <h2>2. Round</h2>
       <div class="actions">
         <button id="shuffleBtn" disabled>🎲 Shuffle Teams</button>
-        <button class="secondary" id="newRoundBtn" disabled>Next Round</button>
+        <button class="secondary" id="newRoundBtn" disabled>Next Phase</button>
       </div>
     </div>
     <div id="teamsArea"></div>
@@ -121,7 +121,7 @@
 (function() {
   'use strict';
 
-  const STORAGE_KEY = 'badminton-tournament-v1';
+  const STORAGE_KEY = 'badminton-tournament-v2';
   const GAMES_TO_WIN = 2; // best of 3
   const POINTS_PER_GAME = 21;
   const SIDE_SWITCH = 11; // game 3 only
@@ -130,6 +130,8 @@
     players: [],
     rounds: [],   // each: { number, teams: [[p1,p2], ...], matches: [{id, a:[p1,p2], b:[p1,p2], games:[{a,b,winner}], winner:null}] }
     history: [],  // for undo
+    tournamentTeams: [], // fixed teams for the tournament (shuffled once)
+    finalTopTeam: null, // stored top team for final
   });
 
   let state = load();
@@ -140,14 +142,10 @@
       if (!raw) return defaultState();
       const parsed = JSON.parse(raw);
       return { ...defaultState(), ...parsed };
-    } catch (e) {
-      return defaultState();
-    }
+    } catch (e) { return defaultState(); }
   }
 
-  function save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
-  }
+  function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {} }
 
   function uid() { return Math.random().toString(36).slice(2, 10); }
 
@@ -160,15 +158,9 @@
 
   function showError(msg) { toast(msg); }
 
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
-  }
+  function esc(s) { return String(s).replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
-  window.addEventListener('error', e => {
-    toast('Something went wrong: ' + (e.message || 'unknown error'));
-  });
+  window.addEventListener('error', e => { toast('Something went wrong: ' + (e.message || 'unknown error')); });
 
   // ---- Players ----
   const playerInput = document.getElementById('playerInput');
@@ -180,10 +172,7 @@
   function addPlayer() {
     const name = playerInput.value.trim();
     if (!name) return;
-    if (state.players.some(p => p.toLowerCase() === name.toLowerCase())) {
-      showError('Player already added');
-      return;
-    }
+    if (state.players.some(p => p.toLowerCase() === name.toLowerCase())) { showError('Player already added'); return; }
     state.players.push(name);
     playerInput.value = '';
     save();
@@ -208,76 +197,170 @@
   addPlayerBtn.addEventListener('click', addPlayer);
   clearPlayersBtn.addEventListener('click', clearPlayers);
 
-  // ---- Shuffle teams ----
+  // ---- Shuffle (create fixed teams) ----
   const shuffleBtn = document.getElementById('shuffleBtn');
   const newRoundBtn = document.getElementById('newRoundBtn');
 
-  function shuffle(arr) {
-    const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
+  function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
   function makeTeams(players) {
-    // Random pairs. If odd, last player gets a bye.
-    const shuffled = shuffle(players);
     const teams = [];
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (i + 1 < shuffled.length) teams.push([shuffled[i], shuffled[i + 1]]);
-      else teams.push([shuffled[i]]); // bye
+    for (let i = 0; i < players.length; i += 2) {
+      if (i + 1 < players.length) teams.push([players[i], players[i + 1]]);
+      else teams.push([players[i]]); // fallback if odd number
     }
     return teams;
   }
 
-  function makeMatches(teams) {
-    // Pair up teams randomly. Byes are skipped.
-    const playable = teams.filter(t => t.length === 2);
-    const shuffled = shuffle(playable);
+  // Generate matches where each team plays up to two games against distinct opponents
+  function generateGroupMatches(teams) {
+    const n = teams.length;
+    const matchCounts = new Array(n).fill(0);
     const matches = [];
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (i + 1 < shuffled.length) {
-        matches.push({
-          id: uid(),
-          a: shuffled[i],
-          b: shuffled[i + 1],
-          games: [{ a: 0, b: 0, finished: false }],
-          winner: null,
-        });
-      } else {
-        // odd team out — auto-win bye
-        matches.push({
-          id: uid(),
-          a: shuffled[i],
-          b: null,
-          games: [],
-          winner: 'a',
-          bye: true,
-        });
+    const possiblePairs = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) possiblePairs.push([i, j]);
+    }
+    // shuffle possible pairs
+    const shuffledPairs = shuffle(possiblePairs);
+    for (const [i, j] of shuffledPairs) {
+      if (matchCounts[i] < 2 && matchCounts[j] < 2) {
+        matches.push({ a: teams[i], b: teams[j] });
+        matchCounts[i]++; matchCounts[j]++;
+        if (matchCounts.every(c => c === 2)) break;
       }
     }
-    return matches;
+    // If we have exactly two teams and they have less than 2 matches, schedule duplicate matches to reach 2 each
+    if (n === 2) {
+      while (matchCounts[0] < 2) {
+        matches.push({ a: teams[0], b: teams[1] });
+        matchCounts[0]++; matchCounts[1]++;
+      }
+    }
+    // Convert to match objects used by the app
+    return matches.map(pair => ({
+      id: uid(),
+      a: pair.a,
+      b: pair.b,
+      games: [{ a: 0, b: 0, finished: false }],
+      winner: null,
+    }));
   }
 
-  function startNewRound() {
-    if (state.players.length < 4) { showError('Need at least 4 players'); return; }
-    const teams = makeTeams(state.players);
-    const matches = makeMatches(teams);
-    state.rounds.push({ number: state.rounds.length + 1, teams, matches });
+  function startGroupStage() {
+    // Require exactly 6 or 8 players to form 3 or 4 doubles teams
+    if (state.players.length !== 6 && state.players.length !== 8) {
+      showError('Need exactly 6 or 8 players (3 or 4 doubles teams)');
+      return;
+    }
+    if (state.rounds.length > 0) { showError('Tournament already started'); return; }
+    // Shuffle players, then pair sequentially into 2-player teams
+    const shuffled = shuffle(state.players);
+    const teams = makeTeams(shuffled);
+    state.tournamentTeams = teams;
+    const scheduleRounds = buildSchedule(teams);
+    scheduleRounds.forEach((pairs, idx) => {
+      const matches = pairs.map(pair => ({
+        id: uid(),
+        a: teams[pair[0]],
+        b: teams[pair[1]],
+        games: [{ a: 0, b: 0, finished: false }],
+        winner: null,
+      }));
+      state.rounds.push({ number: idx + 1, teams, matches });
+    });
     save();
     render();
   }
 
-  function startFirstRound() {
-    if (state.players.length < 4) { showError('Need at least 4 players'); return; }
-    if (state.rounds.length > 0) { showError('Round already exists — use Next Round'); return; }
-    startNewRound();
+  // Published schedules: index = number of teams.
+  // Each inner array is a round; each entry is a [teamA, teamB] pair using 0-based team indices.
+  function buildSchedule(teams) {
+    const n = teams.length;
+    if (n === 4) {
+      // 4-team round robin (3 rounds, 6 matches)
+      return [
+        [[0, 3], [1, 2]],
+        [[0, 2], [1, 3]],
+        [[0, 1], [2, 3]],
+      ];
+    }
+    if (n === 3) {
+      // 3-team double round robin (2 rounds, 6 matches).
+      // Round 1: AB, BC, CA. Round 2: same pairings, sides swapped (BA, CB, AC).
+      return [
+        [[0, 1], [1, 2], [2, 0]],
+        [[1, 0], [2, 1], [0, 2]],
+      ];
+    }
+    return [];
   }
 
-  shuffleBtn.addEventListener('click', startFirstRound);
-  newRoundBtn.addEventListener('click', startNewRound);
+  // Helper to check if all matches in a round have a winner (or are byes)
+  function allMatchesFinished(round) { return round.matches.every(m => m.winner); }
+
+  // ---- Knockout phases ----
+  function computeTeamStandings() {
+    // Reuse player‑level stats from computeStandings
+    const playerStats = computeStandings(); // returns sorted players (but sorting not needed here)
+    const playerMap = new Map();
+    for (const p of playerStats) playerMap.set(p.name, p);
+    const teams = state.tournamentTeams || [];
+    const teamStats = teams.map(team => {
+      const p1 = playerMap.get(team[0]) || { wins: 0, pointsFor: 0, pointsAgainst: 0 };
+      const p2 = playerMap.get(team[1]) || { wins: 0, pointsFor: 0, pointsAgainst: 0 };
+      const wins = (p1.wins || 0) + (p2.wins || 0);
+      const pointsFor = (p1.pointsFor || 0) + (p2.pointsFor || 0);
+      const pointsAgainst = (p1.pointsAgainst || 0) + (p2.pointsAgainst || 0);
+      const diff = pointsFor - pointsAgainst;
+      return { team, wins, diff, pointsFor, pointsAgainst };
+    });
+    teamStats.sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.diff - a.diff;
+    });
+    return teamStats;
+  }
+
+  function generateFinalRound() {
+    const teamStats = computeTeamStandings();
+    if (teamStats.length < 2) { showError('Not enough teams for a final'); return; }
+    const topTeam = teamStats[0].team;
+    const secondTeam = teamStats[1].team;
+    const finalMatch = {
+      id: uid(),
+      a: topTeam,
+      b: secondTeam,
+      games: [{ a: 0, b: 0, finished: false }],
+      winner: null,
+    };
+    state.finalTopTeam = topTeam;
+    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch] });
+    save();
+    render();
+  }
+
+  function nextPhase() {
+    if (state.rounds.length === 0) {
+      showError('Shuffle teams first');
+      return;
+    }
+    const currentRound = state.rounds[state.rounds.length - 1];
+    if (!allMatchesFinished(currentRound)) {
+      showError('Finish all matches of the current phase first');
+      return;
+    }
+    if (currentRound.matches.length === 1 && currentRound.teams.length === 0) {
+      // Current round is already a finished final (finals carry no team list)
+      toast('Tournament completed');
+      return;
+    }
+    // Group stage finished → create final (top 1 vs top 2)
+    generateFinalRound();
+  }
+
+  shuffleBtn.addEventListener('click', startGroupStage);
+  newRoundBtn.addEventListener('click', nextPhase);
 
   // ---- Scoring ----
   function currentMatch(roundIdx, matchId) {
@@ -286,35 +369,17 @@
     return round.matches.find(m => m.id === matchId) || null;
   }
 
-  function snapshot() {
-    // Snapshot only tournament data — must NOT include `history` itself, or each
-    // snapshot grows quadratically and crashes JSON.stringify on a long match.
-    return JSON.stringify({ players: state.players, rounds: state.rounds });
-  }
-
-  function restoreSnapshot(s) {
-    const parsed = JSON.parse(s);
-    state.players = parsed.players;
-    state.rounds = parsed.rounds;
-  }
-
-  function pushHistory() {
-    state.history.push(snapshot());
-    if (state.history.length > 50) state.history.shift();
-  }
+  function snapshot() { return JSON.stringify({ players: state.players, rounds: state.rounds }); }
+  function restoreSnapshot(s) { const parsed = JSON.parse(s); state.players = parsed.players; state.rounds = parsed.rounds; }
+  function pushHistory() { state.history.push(snapshot()); if (state.history.length > 50) state.history.shift(); }
 
   function scorePoint(roundIdx, matchId, side) {
     const match = currentMatch(roundIdx, matchId);
     if (!match || match.winner) return;
     pushHistory();
-
     let current = match.games[match.games.length - 1];
-    if (current.finished) return; // shouldn't happen
-
-    if (side === 'a') current.a++;
-    else current.b++;
-
-    // Deuce rule: must win by 2, cap at 30
+    if (current.finished) return;
+    if (side === 'a') current.a++; else current.b++;
     const a = current.a, b = current.b;
     const high = Math.max(a, b);
     if ((a >= POINTS_PER_GAME || b >= POINTS_PER_GAME) && high >= POINTS_PER_GAME) {
@@ -323,10 +388,6 @@
         current.winner = a > b ? 'a' : 'b';
       }
     }
-
-    // Game 3 side-switch at 11
-    // (UI-level concern; we don't track sides per game explicitly, just show note)
-
     // Check match win
     let aWins = 0, bWins = 0;
     for (const g of match.games) {
@@ -336,12 +397,8 @@
     if (aWins >= GAMES_TO_WIN) match.winner = 'a';
     else if (bWins >= GAMES_TO_WIN) match.winner = 'b';
     else if (aWins + bWins === GAMES_TO_WIN - 1 && (aWins === GAMES_TO_WIN - 1 || bWins === GAMES_TO_WIN - 1)) {
-      // one more game needed; ensure third game exists
-      if (match.games.length < GAMES_TO_WIN) {
-        match.games.push({ a: 0, b: 0, finished: false });
-      }
+      if (match.games.length < GAMES_TO_WIN) match.games.push({ a: 0, b: 0, finished: false });
     }
-
     save();
     render();
   }
@@ -363,38 +420,38 @@
     for (const round of state.rounds) {
       for (const m of round.matches) {
         if (m.bye) {
-          // bye counts as a played match with no points
-          for (const p of m.a) {
-            const s = stats.get(p);
-            if (s) s.played++;
-          }
+          for (const p of m.a) { const s = stats.get(p); if (s) s.played++; }
           continue;
         }
-        for (const side of ['a', 'b']) {
-          const team = m[side];
-          for (const p of team) {
-            const s = stats.get(p);
-            if (s) s.played++;
-          }
-        }
+        // count games points
         for (const g of m.games) {
           stats.get(m.a[0]).pointsFor += g.a;
           stats.get(m.a[1]).pointsFor += g.a;
           stats.get(m.b[0]).pointsFor += g.b;
           stats.get(m.b[1]).pointsFor += g.b;
+          // points against
+          stats.get(m.a[0]).pointsAgainst += g.b;
+          stats.get(m.a[1]).pointsAgainst += g.b;
+          stats.get(m.b[0]).pointsAgainst += g.a;
+          stats.get(m.b[1]).pointsAgainst += g.a;
         }
-        // Use sets/games won for ranking (BWF convention: match wins primary)
+        // win/loss per player
         if (m.winner) {
           const winningTeam = m[m.winner];
           const losingTeam = m[m.winner === 'a' ? 'b' : 'a'];
-          for (const p of winningTeam) stats.get(p).wins++;
-          for (const p of losingTeam) stats.get(p).losses++;
+          for (const p of winningTeam) { const s = stats.get(p); if (s) s.wins++; }
+          for (const p of losingTeam) { const s = stats.get(p); if (s) s.losses++; }
+        }
+        // played count per player
+        for (const side of ['a', 'b']) {
+          const team = m[side];
+          if (!team) continue;
+          for (const p of team) { const s = stats.get(p); if (s) s.played++; }
         }
       }
     }
     return [...stats.values()].sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
-      // tiebreaker: point differential
       const aDiff = a.pointsFor - a.pointsAgainst;
       const bDiff = b.pointsFor - b.pointsAgainst;
       return bDiff - aDiff;
@@ -413,8 +470,9 @@
     URL.revokeObjectURL(url);
   });
 
+  // ---- Reset ----
   document.getElementById('resetBtn').addEventListener('click', () => {
-    if (!confirm('Reset the entire tournament? This cannot be undone.')) return;
+    if (!confirm('Reset the entire tournament? This cannot be undone')) return;
     state = defaultState();
     save();
     render();
@@ -426,17 +484,16 @@
     renderTeams();
     renderMatches();
     renderStandings();
-    shuffleBtn.disabled = state.players.length < 4 || state.rounds.length > 0;
-    newRoundBtn.disabled = state.players.length < 4;
+    const playerCountOk = state.players.length === 6 || state.players.length === 8;
+    shuffleBtn.disabled = !playerCountOk || state.rounds.length > 0;
+    newRoundBtn.disabled = true;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
   }
 
   function renderPlayers() {
     playerList.innerHTML = '';
-    if (state.players.length === 0) {
-      playerEmpty.style.display = 'block';
-    } else {
-      playerEmpty.style.display = 'none';
+    if (state.players.length === 0) { playerEmpty.style.display = 'block'; }
+    else { playerEmpty.style.display = 'none';
       for (const p of state.players) {
         const pill = document.createElement('span');
         pill.className = 'pill';
@@ -452,10 +509,7 @@
     const area = document.getElementById('teamsArea');
     area.innerHTML = '';
     const last = state.rounds[state.rounds.length - 1];
-    if (!last) {
-      area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>';
-      return;
-    }
+    if (!last) { area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>'; return; }
     const heading = document.createElement('h3');
     heading.textContent = `Round ${last.number} — ${last.teams.length} teams`;
     area.appendChild(heading);
@@ -477,68 +531,46 @@
   function renderMatches() {
     const area = document.getElementById('matchesArea');
     area.innerHTML = '';
-    if (state.rounds.length === 0) {
-      area.innerHTML = '<div class="empty">No matches yet.</div>';
-      return;
-    }
+    if (state.rounds.length === 0) { area.innerHTML = '<div class="empty">No matches yet.</div>'; return; }
     state.rounds.forEach((round, rIdx) => {
       const heading = document.createElement('h3');
       heading.textContent = `Round ${round.number}`;
       area.appendChild(heading);
-      if (round.matches.length === 0) {
-        const e = document.createElement('div');
-        e.className = 'empty';
-        e.textContent = 'No matches.';
-        area.appendChild(e);
-        return;
-      }
+      if (round.matches.length === 0) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; area.appendChild(e); return; }
       round.matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'match';
-
         if (match.bye) {
           div.innerHTML = `<div class="match-header"><span class="label">Match</span><span class="match-status done">BYE</span></div><div style="text-align:center;color:var(--muted)">${esc(match.a[0])} gets a bye this round</div>`;
           area.appendChild(div);
           return;
         }
-
         let statusHtml = '';
         let statusClass = '';
-        if (match.winner) {
-          statusClass = 'done';
-          statusHtml = `<span class="match-status done">Finished</span>`;
-        } else {
-          statusClass = 'live';
-          statusHtml = `<span class="match-status live">In progress</span>`;
-        }
-
+        if (match.winner) { statusClass = 'done'; statusHtml = `<span class="match-status done">Finished</span>`; }
+        else { statusClass = 'live'; statusHtml = `<span class="match-status live">In progress</span>`; }
         const aLabel = `${esc(match.a[0])} &amp; ${esc(match.a[1])}`;
         const bLabel = `${esc(match.b[0])} &amp; ${esc(match.b[1])}`;
         const aWins = match.games.filter(g => g.winner === 'a').length;
         const bWins = match.games.filter(g => g.winner === 'b').length;
         const current = match.games[match.games.length - 1];
-
         const gamesHtml = match.games.map((g, gi) => {
           let label = `G${gi+1}: ${g.a}-${g.b}`;
           if (g.finished) label += g.winner === 'a' ? ' (A)' : ' (B)';
           return `<span class="game-pill">${label}</span>`;
         }).join('');
-
         let switchNote = '';
         if (match.games.length === 3 && !current.finished) {
           const high = Math.max(current.a, current.b);
           if (high === SIDE_SWITCH) switchNote = `<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:4px">⇄ Side switch at 11</div>`;
         }
-
-        const isDecider = match.games.length === 3 && !match.winner;
-        const aSide = match.winner === 'a' ? 'color:var(--accent);font-weight:700' : '';
-        const bSide = match.winner === 'b' ? 'color:var(--accent);font-weight:700' : '';
-
+        const aSideStyle = match.winner === 'a' ? 'color:var(--accent);font-weight:700' : '';
+        const bSideStyle = match.winner === 'b' ? 'color:var(--accent);font-weight:700' : '';
         div.innerHTML = `
           <div class="match-header"><span class="label">Match</span>${statusHtml}</div>
           <div class="sides">
             <div class="side left">
-              <div class="side-name" style="${aSide}">${aLabel}</div>
+              <div class="side-name" style="${aSideStyle}">${aLabel}</div>
               <div class="side-players">${aWins} game${aWins!==1?'s':''} won</div>
               <div class="score">${current.a}</div>
               <div class="score-controls">
@@ -548,7 +580,7 @@
             </div>
             <div style="text-align:center;color:var(--muted);font-size:12px">vs</div>
             <div class="side">
-              <div class="side-name" style="${bSide}">${bLabel}</div>
+              <div class="side-name" style="${bSideStyle}">${bLabel}</div>
               <div class="side-players">${bWins} game${bWins!==1?'s':''} won</div>
               <div class="score">${current.b}</div>
               <div class="score-controls">
@@ -560,18 +592,17 @@
           <div class="games">${gamesHtml}</div>
           ${switchNote}
         `;
-
+        // attach button listeners
         div.querySelectorAll('button[data-side]').forEach(btn => {
           btn.addEventListener('click', () => {
             const side = btn.dataset.side;
             const act = btn.dataset.act;
             if (act === 'plus') scorePoint(rIdx, match.id, side);
             else {
-              // manual decrement: push history then mutate
+              // manual decrement
               pushHistory();
               const cur = match.games[match.games.length - 1];
               if (cur.finished) {
-                // roll back last finished game
                 if (cur.winner) {
                   if (cur.winner === 'a') match.winner = null;
                 }
@@ -584,20 +615,17 @@
                 if (side === 'a' && cur.a > 0) cur.a--;
                 else if (side === 'b' && cur.b > 0) cur.b--;
               }
-              // remove trailing empty game 3 if it's still 0-0
+              // prune empty third game if needed
               if (match.games.length > 1) {
                 const lastG = match.games[match.games.length - 1];
                 const prevG = match.games[match.games.length - 2];
-                if (!lastG.finished && lastG.a === 0 && lastG.b === 0 && prevG.finished) {
-                  match.games.pop();
-                }
+                if (!lastG.finished && lastG.a === 0 && lastG.b === 0 && prevG.finished) match.games.pop();
               }
               save();
               render();
             }
           });
         });
-
         area.appendChild(div);
       });
     });
@@ -606,10 +634,7 @@
   function renderStandings() {
     const area = document.getElementById('standingsArea');
     area.innerHTML = '';
-    if (state.players.length === 0) {
-      area.innerHTML = '<div class="empty">Standings will appear once players are added.</div>';
-      return;
-    }
+    if (state.players.length === 0) { area.innerHTML = '<div class="empty">Standings will appear once players are added.</div>'; return; }
     const standings = computeStandings();
     const table = document.createElement('table');
     table.className = 'standings';
