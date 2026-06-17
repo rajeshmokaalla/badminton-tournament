@@ -72,7 +72,7 @@
 <body>
 <div class="container">
   <h1>🏸 Badminton Tournament</h1>
-  <div class="subtitle">Doubles round-robin · BWF scoring (best of 3 to 21)</div>
+  <div class="subtitle">Doubles round-robin · BWF scoring (single game to 21)</div>
 
   <div class="panel">
     <h2>1. Players</h2>
@@ -122,7 +122,7 @@
   'use strict';
 
   const STORAGE_KEY = 'badminton-tournament-v2';
-  const GAMES_TO_WIN = 2; // best of 3
+  const GAMES_TO_WIN = 1; // single game per match
   const POINTS_PER_GAME = 21;
   const SIDE_SWITCH = 11; // game 3 only
 
@@ -566,12 +566,13 @@
         }
         const aSideStyle = match.winner === 'a' ? 'color:var(--accent);font-weight:700' : '';
         const bSideStyle = match.winner === 'b' ? 'color:var(--accent);font-weight:700' : '';
+        const showGamesInfo = GAMES_TO_WIN > 1;
         div.innerHTML = `
           <div class="match-header"><span class="label">Match</span>${statusHtml}</div>
           <div class="sides">
             <div class="side left">
               <div class="side-name" style="${aSideStyle}">${aLabel}</div>
-              <div class="side-players">${aWins} game${aWins!==1?'s':''} won</div>
+              ${showGamesInfo ? `<div class="side-players">${aWins} game${aWins!==1?'s':''} won</div>` : ''}
               <div class="score">${current.a}</div>
               <div class="score-controls">
                 <button data-side="a" data-act="plus" ${match.winner?'disabled':''}>+1</button>
@@ -581,7 +582,7 @@
             <div style="text-align:center;color:var(--muted);font-size:12px">vs</div>
             <div class="side">
               <div class="side-name" style="${bSideStyle}">${bLabel}</div>
-              <div class="side-players">${bWins} game${bWins!==1?'s':''} won</div>
+              ${showGamesInfo ? `<div class="side-players">${bWins} game${bWins!==1?'s':''} won</div>` : ''}
               <div class="score">${current.b}</div>
               <div class="score-controls">
                 <button data-side="b" data-act="plus" ${match.winner?'disabled':''}>+1</button>
@@ -589,7 +590,7 @@
               </div>
             </div>
           </div>
-          <div class="games">${gamesHtml}</div>
+          ${showGamesInfo ? `<div class="games">${gamesHtml}</div>` : ''}
           ${switchNote}
         `;
         // attach button listeners
