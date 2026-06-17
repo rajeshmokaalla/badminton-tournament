@@ -160,6 +160,16 @@
 
   function showError(msg) { toast(msg); }
 
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  window.addEventListener('error', e => {
+    toast('Something went wrong: ' + (e.message || 'unknown error'));
+  });
+
   // ---- Players ----
   const playerInput = document.getElementById('playerInput');
   const addPlayerBtn = document.getElementById('addPlayerBtn');
@@ -445,7 +455,7 @@
       if (team.length === 1) {
         div.innerHTML = `<div class="team-title">Team ${idx + 1}</div><div class="bye">${team[0]} (bye)</div>`;
       } else {
-        div.innerHTML = `<div class="team-title">Team ${idx + 1}</div><div>${team[0]} & ${team[1]}</div>`;
+        div.innerHTML = `<div class="team-title">Team ${idx + 1}</div><div>${esc(team[0])} &amp; ${esc(team[1])}</div>`;
       }
       grid.appendChild(div);
     });
@@ -475,7 +485,7 @@
         div.className = 'match';
 
         if (match.bye) {
-          div.innerHTML = `<div class="match-header"><span class="label">Match</span><span class="match-status done">BYE</span></div><div style="text-align:center;color:var(--muted)">${match.a[0]} gets a bye this round</div>`;
+          div.innerHTML = `<div class="match-header"><span class="label">Match</span><span class="match-status done">BYE</span></div><div style="text-align:center;color:var(--muted)">${esc(match.a[0])} gets a bye this round</div>`;
           area.appendChild(div);
           return;
         }
@@ -490,8 +500,8 @@
           statusHtml = `<span class="match-status live">In progress</span>`;
         }
 
-        const aLabel = `${match.a[0]} & ${match.a[1]}`;
-        const bLabel = `${match.b[0]} & ${match.b[1]}`;
+        const aLabel = `${esc(match.a[0])} &amp; ${esc(match.a[1])}`;
+        const bLabel = `${esc(match.b[0])} &amp; ${esc(match.b[1])}`;
         const aWins = match.games.filter(g => g.winner === 'a').length;
         const bWins = match.games.filter(g => g.winner === 'b').length;
         const current = match.games[match.games.length - 1];
@@ -604,7 +614,7 @@
       const diff = s.pointsFor - s.pointsAgainst;
       tr.innerHTML = `
         <td>${i+1}</td>
-        <td>${s.name}</td>
+        <td>${esc(s.name)}</td>
         <td>${s.played}</td>
         <td>${s.wins}</td>
         <td>${s.losses}</td>
