@@ -92,15 +92,22 @@
     .section-title-row .actions button { flex: 1; }
     body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
   }
-  .install-prompt { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #052e16; padding: 12px 18px; border-radius: 999px; box-shadow: var(--shadow); font-size: 15px; font-weight: 600; cursor: pointer; z-index: 50; max-width: calc(100vw - 32px); text-align: center; line-height: 1.3; }
-  .install-prompt.show { display: block; }
-  .install-prompt b { font-weight: 800; }
+  .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .header-row .header-text { flex: 1; min-width: 0; }
+  .header-row h1 { margin: 0 0 6px; }
+  .header-row .subtitle { margin: 0; }
+  .header-row .install-btn { white-space: nowrap; margin-top: 6px; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🏸 Badminton Tournament</h1>
-  <div class="subtitle">Doubles round-robin · BWF scoring (single game to 21)</div>
+  <div class="header-row">
+    <div class="header-text">
+      <h1>🏸 Badminton Tournament</h1>
+      <div class="subtitle">Doubles round-robin · BWF scoring (single game to 21)</div>
+    </div>
+    <button id="installBtn" class="secondary install-btn" type="button">📲 Install app</button>
+  </div>
 
   <div class="panel">
     <h2>1. Players</h2>
@@ -792,56 +799,46 @@
   // initial render
   render();
 
-  // ---- PWA: install prompt + service worker ----
+  // ---- PWA: install button + service worker ----
   let deferredPrompt = null;
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-  function ensureInstallUI() {
-    if (document.getElementById('installPrompt')) return;
-    if (isStandalone) return; // already installed
-    const btn = document.createElement('div');
-    btn.id = 'installPrompt';
-    btn.className = 'install-prompt';
-    if (isIOS) {
-      btn.innerHTML = '📲 Tap <b>Share</b> → <b>Add to Home Screen</b> to install';
-    } else {
-      btn.textContent = '📲 Install app';
-    }
-    btn.addEventListener('click', async () => {
+  const installBtn = document.getElementById('installBtn');
+  function refreshInstallBtn() {
+    if (!installBtn) return;
+    if (isStandalone) { installBtn.style.display = 'none'; return; }
+    installBtn.style.display = '';
+  }
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         try { await deferredPrompt.userChoice; } catch (e) {}
         deferredPrompt = null;
+        return;
+      }
+      // No native install prompt available — show manual instructions
+      if (isIOS) {
+        showError('Tap the Share button, then "Add to Home Screen"');
+      } else {
+        showError('Use the browser menu → "Add to Home screen" or "Install app"');
       }
     });
-    document.body.appendChild(btn);
-    // Slight delay so the page can settle, then show
-    setTimeout(() => btn.classList.add('show'), 1500);
+    refreshInstallBtn();
   }
 
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
-    ensureInstallUI();
   });
 
   window.addEventListener('appinstalled', () => {
-    const btn = document.getElementById('installPrompt');
-    if (btn) btn.remove();
+    refreshInstallBtn();
   });
 
-  // iOS doesn't fire beforeinstallprompt — show the manual hint after the SW is ready.
-  // Also show the button for everyone once the SW controls the page, so users who
-  // visit via a deep link don't have to wait for a second visit.
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
-    navigator.serviceWorker.ready.then(() => {
-      // SW is controlling — surface install UI even before beforeinstallprompt fires
-      if (!deferredPrompt) ensureInstallUI();
-    });
-  } else if (isIOS) {
-    ensureInstallUI();
   }
 })();
 </script>
