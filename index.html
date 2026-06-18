@@ -721,7 +721,7 @@
     table.className = 'standings';
     table.innerHTML = `
       <thead><tr>
-        <th>#</th><th>Team</th><th>W</th><th>PF</th><th>PA</th><th>Diff</th>
+        <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>Diff</th>
       </tr></thead>
       <tbody></tbody>
     `;
@@ -732,11 +732,14 @@
       const teamLabel = s.team.length === 1
         ? `${esc(s.team[0])} <span class="bye">(bye)</span>`
         : `${esc(s.team[0])} &amp; ${esc(s.team[1])}`;
+      const played = s.wins + s.losses;
       const diff = s.pointsFor - s.pointsAgainst;
       tr.innerHTML = `
         <td>${i+1}</td>
         <td>${teamLabel}</td>
+        <td>${played}</td>
         <td>${s.wins}</td>
+        <td>${s.losses}</td>
         <td>${s.pointsFor}</td>
         <td>${s.pointsAgainst}</td>
         <td>${diff > 0 ? '+' : ''}${diff}</td>
