@@ -607,7 +607,7 @@
       area.appendChild(heading);
       if (round.matches.length === 0) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; area.appendChild(e); return; }
       if (round === finalRound && round.matches[0].winner) {
-        const winnerTeam = round.matches[round.matches[0].winner];
+        const winnerTeam = round.matches[0][round.matches[0].winner];
         const banner = document.createElement('div');
         banner.className = 'winner-banner';
         banner.innerHTML = `🏆 Congratulations to <b>${esc(winnerTeam[0])} &amp; ${esc(winnerTeam[1])}</b> — tournament champions!`;
