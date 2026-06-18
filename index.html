@@ -322,19 +322,41 @@
     return teamStats;
   }
 
-  function generateFinalRound() {
+  function generateSemiRound() {
     const teamStats = computeTeamStandings();
-    if (teamStats.length < 2) { showError('Not enough teams for a final'); return; }
+    if (teamStats.length < 3) { showError('Not enough teams for a semi-final'); return; }
     const topTeam = teamStats[0].team;
     const secondTeam = teamStats[1].team;
-    const finalMatch = {
+    const thirdTeam = teamStats[2].team;
+    // Top team goes straight to the final; 2nd and 3rd play the semi
+    state.finalTopTeam = topTeam;
+    const semiMatch = {
       id: uid(),
-      a: topTeam,
-      b: secondTeam,
+      a: secondTeam,
+      b: thirdTeam,
       games: [{ a: 0, b: 0, finished: false }],
       winner: null,
     };
-    state.finalTopTeam = topTeam;
+    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [semiMatch] });
+    save();
+    render();
+  }
+
+  function generateFinalRound() {
+    if (!state.finalTopTeam) { showError('Top team not set for final'); return; }
+    const lastRound = state.rounds[state.rounds.length - 1];
+    const semiMatch = lastRound.matches[0];
+    if (!semiMatch.winner) { showError('Semi match not finished'); return; }
+    const winnerSide = semiMatch.winner;
+    const winnerTeam = semiMatch[winnerSide];
+    const finalMatch = {
+      id: uid(),
+      a: state.finalTopTeam,
+      b: winnerTeam,
+      games: [{ a: 0, b: 0, finished: false }],
+      winner: null,
+    };
+    state.finalTopTeam = null;
     state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch] });
     save();
     render();
@@ -350,13 +372,38 @@
       showError('Finish all matches of the current phase first');
       return;
     }
-    if (currentRound.matches.length === 1 && currentRound.teams.length === 0) {
-      // Current round is already a finished final (finals carry no team list)
+    const teamCount = (state.tournamentTeams || []).length;
+    const is4Team = teamCount === 4;
+    const isFinishedSemi = state.finalTopTeam !== null && currentRound.matches.length === 1 && currentRound.teams.length === 0;
+    const isFinishedFinal = state.finalTopTeam === null && currentRound.matches.length === 1 && currentRound.teams.length === 0;
+    if (isFinishedSemi) {
+      // Just finished the semi → schedule the final
+      generateFinalRound();
+      return;
+    }
+    if (isFinishedFinal) {
+      // Already a finished final
       toast('Tournament completed');
       return;
     }
-    // Group stage finished → create final (top 1 vs top 2)
-    generateFinalRound();
+    // Group stage just finished
+    if (is4Team) {
+      generateSemiRound();
+    } else {
+      // 3-team (or other): top 2 go straight to the final
+      const teamStats = computeTeamStandings();
+      if (teamStats.length < 2) { showError('Not enough teams for a final'); return; }
+      const finalMatch = {
+        id: uid(),
+        a: teamStats[0].team,
+        b: teamStats[1].team,
+        games: [{ a: 0, b: 0, finished: false }],
+        winner: null,
+      };
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch] });
+      save();
+      render();
+    }
   }
 
   shuffleBtn.addEventListener('click', startGroupStage);
