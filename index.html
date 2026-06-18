@@ -533,7 +533,13 @@
     renderStandings();
     const playerCountOk = state.players.length === 6 || state.players.length === 8;
     shuffleBtn.disabled = !playerCountOk || state.rounds.length > 0;
-    newRoundBtn.disabled = true;
+    const lastRound = state.rounds[state.rounds.length - 1];
+    const tournamentOver = lastRound
+      && lastRound.matches.length === 1
+      && lastRound.teams.length === 0
+      && state.finalTopTeam === null
+      && lastRound.matches[0].winner;
+    newRoundBtn.disabled = !lastRound || !allMatchesFinished(lastRound) || tournamentOver;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
   }
 
