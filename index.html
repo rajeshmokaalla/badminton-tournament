@@ -303,19 +303,33 @@
 
   // ---- Knockout phases ----
   function computeTeamStandings() {
-    // Reuse player‑level stats from computeStandings
-    const playerStats = computeStandings(); // returns sorted players (but sorting not needed here)
-    const playerMap = new Map();
-    for (const p of playerStats) playerMap.set(p.name, p);
     const teams = state.tournamentTeams || [];
     const teamStats = teams.map(team => {
-      const p1 = playerMap.get(team[0]) || { wins: 0, pointsFor: 0, pointsAgainst: 0 };
-      const p2 = playerMap.get(team[1]) || { wins: 0, pointsFor: 0, pointsAgainst: 0 };
-      const wins = (p1.wins || 0) + (p2.wins || 0);
-      const pointsFor = (p1.pointsFor || 0) + (p2.pointsFor || 0);
-      const pointsAgainst = (p1.pointsAgainst || 0) + (p2.pointsAgainst || 0);
-      const diff = pointsFor - pointsAgainst;
-      return { team, wins, diff, pointsFor, pointsAgainst };
+      const key = team.slice().sort().join('|');
+      return { team, key, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 };
+    });
+    const teamByKey = new Map(teamStats.map(t => [t.key, t]));
+    function findTeam(team) {
+      return teamByKey.get(team.slice().sort().join('|'));
+    }
+    for (const round of state.rounds) {
+      for (const m of round.matches) {
+        if (m.bye) continue;
+        for (const g of m.games) {
+          findTeam(m.a).pointsFor += g.a;
+          findTeam(m.b).pointsFor += g.b;
+          findTeam(m.a).pointsAgainst += g.b;
+          findTeam(m.b).pointsAgainst += g.a;
+        }
+        if (m.winner) {
+          findTeam(m[m.winner]).wins++;
+          findTeam(m[m.winner === 'a' ? 'b' : 'a']).losses++;
+        }
+      }
+    }
+    teamStats.forEach(s => {
+      s.played = s.wins + s.losses;
+      s.diff = s.pointsFor - s.pointsAgainst;
     });
     teamStats.sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
@@ -732,7 +746,7 @@
       const teamLabel = s.team.length === 1
         ? `${esc(s.team[0])} <span class="bye">(bye)</span>`
         : `${esc(s.team[0])} &amp; ${esc(s.team[1])}`;
-      const played = s.wins + s.losses;
+      const played = s.played != null ? s.played : (s.wins + s.losses);
       const diff = s.pointsFor - s.pointsAgainst;
       tr.innerHTML = `
         <td>${i+1}</td>
