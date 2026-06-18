@@ -66,6 +66,8 @@
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--warn); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: var(--shadow); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .toast.show { opacity: 1; }
   .footer-note { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+  .winner-banner { background: linear-gradient(135deg, #22c55e, #16a34a); color: #052e16; padding: 14px 18px; border-radius: 10px; font-size: 16px; font-weight: 600; margin-bottom: 14px; text-align: center; box-shadow: var(--shadow); }
+  .winner-banner b { font-weight: 800; }
   .section-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
@@ -267,7 +269,7 @@
         games: [{ a: 0, b: 0, finished: false }],
         winner: null,
       }));
-      state.rounds.push({ number: idx + 1, teams, matches });
+      state.rounds.push({ number: idx + 1, teams, matches, phase: 'group' });
     });
     save();
     render();
@@ -337,7 +339,7 @@
       games: [{ a: 0, b: 0, finished: false }],
       winner: null,
     };
-    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [semiMatch] });
+    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [semiMatch], phase: 'semi' });
     save();
     render();
   }
@@ -357,7 +359,7 @@
       winner: null,
     };
     state.finalTopTeam = null;
-    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch] });
+    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch], phase: 'final' });
     save();
     render();
   }
@@ -400,7 +402,7 @@
         games: [{ a: 0, b: 0, finished: false }],
         winner: null,
       };
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch] });
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch], phase: 'final' });
       save();
       render();
     }
@@ -564,7 +566,13 @@
     const last = state.rounds[state.rounds.length - 1];
     if (!last) { area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>'; return; }
     const heading = document.createElement('h3');
-    heading.textContent = `Round ${last.number} — ${last.teams.length} teams`;
+    if (last.phase === 'semi' || last.phase === 'final') {
+      heading.textContent = phaseLabel(last);
+      area.appendChild(heading);
+      area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Teams are shown in the match below.' }));
+      return;
+    }
+    heading.textContent = `${phaseLabel(last)} — ${last.teams.length} teams`;
     area.appendChild(heading);
     const grid = document.createElement('div');
     grid.className = 'teams';
@@ -581,15 +589,30 @@
     area.appendChild(grid);
   }
 
+  function phaseLabel(round) {
+    if (round.phase === 'semi') return 'Semifinal';
+    if (round.phase === 'final') return 'Final';
+    return `Round ${round.number}`;
+  }
+
   function renderMatches() {
     const area = document.getElementById('matchesArea');
     area.innerHTML = '';
     if (state.rounds.length === 0) { area.innerHTML = '<div class="empty">No matches yet.</div>'; return; }
+    // Find the final round (if any) so we can show a congrats banner after it finishes
+    const finalRound = [...state.rounds].reverse().find(r => r.phase === 'final');
     state.rounds.forEach((round, rIdx) => {
       const heading = document.createElement('h3');
-      heading.textContent = `Round ${round.number}`;
+      heading.textContent = phaseLabel(round);
       area.appendChild(heading);
       if (round.matches.length === 0) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; area.appendChild(e); return; }
+      if (round === finalRound && round.matches[0].winner) {
+        const winnerTeam = round.matches[round.matches[0].winner];
+        const banner = document.createElement('div');
+        banner.className = 'winner-banner';
+        banner.innerHTML = `🏆 Congratulations to <b>${esc(winnerTeam[0])} &amp; ${esc(winnerTeam[1])}</b> — tournament champions!`;
+        area.appendChild(banner);
+      }
       round.matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'match';
