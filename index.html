@@ -117,7 +117,7 @@
       <button class="secondary" id="clearPlayersBtn">Clear All</button>
     </div>
     <div class="player-list" id="playerList"></div>
-    <div class="empty" id="playerEmpty">No players added yet. Add 6 or 8 players to start (3 or 4 doubles teams).</div>
+    <div class="empty" id="playerEmpty">No players added yet. Add an even number of players (6, 8, 10, 12 …) to start.</div>
   </div>
 
   <div class="panel">
@@ -166,7 +166,8 @@
     rounds: [],   // each: { number, teams: [[p1,p2], ...], matches: [{id, a:[p1,p2], b:[p1,p2], games:[{a,b,winner}], winner:null}] }
     history: [],  // for undo
     tournamentTeams: [], // fixed teams for the tournament (shuffled once)
-    finalTopTeam: null, // stored top team for final
+    finalTopTeam: null, // legacy (kept for old saves)
+    knockoutByeTeams: [], // teams that have a bye in current knockout round
   });
 
   let state = load();
@@ -283,9 +284,9 @@
   }
 
   function startGroupStage() {
-    // Require exactly 6 or 8 players to form 3 or 4 doubles teams
-    if (state.players.length !== 6 && state.players.length !== 8) {
-      showError('Need exactly 6 or 8 players (3 or 4 doubles teams)');
+    // Require an even number of players, at least 6
+    if (state.players.length < 6 || state.players.length % 2 !== 0) {
+      showError('Need an even number of players (6, 8, 10, 12 …)');
       return;
     }
     if (state.rounds.length > 0) { showError('Tournament already started'); return; }
@@ -308,27 +309,45 @@
     render();
   }
 
-  // Published schedules: index = number of teams.
-  // Each inner array is a round; each entry is a [teamA, teamB] pair using 0-based team indices.
+  // Build a round-robin schedule using the circle/polygon method.
+  // Works for any number of teams n ≥ 2.
+  // Returns an array of rounds; each round is an array of [teamA, teamB] index pairs.
   function buildSchedule(teams) {
     const n = teams.length;
-    if (n === 4) {
-      // 4-team round robin (3 rounds, 6 matches)
-      return [
-        [[0, 3], [1, 2]],
-        [[0, 2], [1, 3]],
-        [[0, 1], [2, 3]],
-      ];
-    }
+    if (n < 2) return [];
+
     if (n === 3) {
-      // 3-team double round robin (2 rounds, 6 matches).
-      // Round 1: AB, BC, CA. Round 2: same pairings, sides swapped (BA, CB, AC).
+      // 3-team: each pair plays twice (double round robin) so each team gets 2 games
       return [
         [[0, 1], [1, 2], [2, 0]],
         [[1, 0], [2, 1], [0, 2]],
       ];
     }
-    return [];
+
+    // Circle method for even n:
+    // Fix team 0; rotate teams 1..n-1 each round.
+    // For odd n, add a virtual "bye" team to make it even, then remove those matches.
+    const useN = n % 2 === 0 ? n : n + 1;
+    const rounds = [];
+    const circle = [];
+    for (let i = 1; i < useN; i++) circle.push(i); // teams 1..useN-1
+
+    for (let r = 0; r < useN - 1; r++) {
+      const round = [];
+      // Fixed team 0 vs the team at the end of the circle
+      const opp = circle[circle.length - 1];
+      if (opp < n) round.push([0, opp]); // skip if opp is the virtual bye
+      // Pair up the rest of the circle
+      for (let i = 0; i < Math.floor((useN - 2) / 2); i++) {
+        const a = circle[i];
+        const b = circle[useN - 2 - i];
+        if (a < n && b < n) round.push([a, b]);
+      }
+      rounds.push(round);
+      // Rotate circle by 1
+      circle.unshift(circle.pop());
+    }
+    return rounds;
   }
 
   // Helper to check if all matches in a round have a winner (or are byes)
@@ -371,87 +390,174 @@
     return teamStats;
   }
 
-  function generateSemiRound() {
-    const teamStats = computeTeamStandings();
-    if (teamStats.length < 3) { showError('Not enough teams for a semi-final'); return; }
-    const topTeam = teamStats[0].team;
-    const secondTeam = teamStats[1].team;
-    const thirdTeam = teamStats[2].team;
-    // Top team goes straight to the final; 2nd and 3rd play the semi
-    state.finalTopTeam = topTeam;
-    const semiMatch = {
-      id: uid(),
-      a: secondTeam,
-      b: thirdTeam,
-      games: [{ a: 0, b: 0, finished: false }],
-      winner: null,
-    };
-    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [semiMatch], phase: 'semi' });
+  // Return the largest power-of-2 ≤ n (e.g. 5→4, 6→4, 8→8)
+  function knockoutBracketSize(n) {
+    let size = 1;
+    while (size * 2 <= n) size *= 2;
+    return size;
+  }
+
+  // Generate a single knockout round from a list of teams (ordered best-to-worst).
+  // Seeds them so #1 plays #last, #2 plays #second-last, etc.
+  // If there are more teams than bracket slots, top teams get byes.
+  function generateKnockoutRound(teamStats, phase) {
+    const n = teamStats.length;
+    const bracket = knockoutBracketSize(n);
+    const byes = bracket - n; // top `byes` teams skip straight to the next round
+    // The teams that actually play this round
+    const playing = teamStats.slice(byes); // worst (n - bracket/2 * 2)? Actually:
+    // We want bracket/2 matches from the bottom seeds, byes go to top seeds.
+    // playing teams: those not getting a bye
+    const playingTeams = teamStats.slice(byes).map(s => s.team);
+    const matches = [];
+    for (let i = 0; i < Math.floor(playingTeams.length / 2); i++) {
+      matches.push({
+        id: uid(),
+        a: playingTeams[i],
+        b: playingTeams[playingTeams.length - 1 - i],
+        games: [{ a: 0, b: 0, finished: false }],
+        winner: null,
+      });
+    }
+    // Store bye teams so next round can use them
+    state.knockoutByeTeams = teamStats.slice(0, byes).map(s => s.team);
+    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
     save();
     render();
   }
 
-  function generateFinalRound() {
-    if (!state.finalTopTeam) { showError('Top team not set for final'); return; }
+  // Advance knockout: collect winners from last round + stored bye teams → next round or final
+  function advanceKnockout() {
     const lastRound = state.rounds[state.rounds.length - 1];
-    const semiMatch = lastRound.matches[0];
-    if (!semiMatch.winner) { showError('Semi match not finished'); return; }
-    const winnerSide = semiMatch.winner;
-    const winnerTeam = semiMatch[winnerSide];
-    const finalMatch = {
-      id: uid(),
-      a: state.finalTopTeam,
-      b: winnerTeam,
-      games: [{ a: 0, b: 0, finished: false }],
-      winner: null,
-    };
-    state.finalTopTeam = null;
-    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch], phase: 'final' });
+    const winners = lastRound.matches.map(m => m[m.winner]);
+    const byeTeams = state.knockoutByeTeams || [];
+    const allTeams = [...byeTeams, ...winners]; // best seeds first (byes are top seeds)
+    state.knockoutByeTeams = [];
+
+    if (allTeams.length === 2) {
+      // Final
+      state.rounds.push({
+        number: state.rounds.length + 1,
+        teams: [],
+        matches: [{
+          id: uid(), a: allTeams[0], b: allTeams[1],
+          games: [{ a: 0, b: 0, finished: false }], winner: null,
+        }],
+        phase: 'final',
+      });
+    } else {
+      // Another knockout round
+      const matches = [];
+      for (let i = 0; i < Math.floor(allTeams.length / 2); i++) {
+        matches.push({
+          id: uid(),
+          a: allTeams[i],
+          b: allTeams[allTeams.length - 1 - i],
+          games: [{ a: 0, b: 0, finished: false }],
+          winner: null,
+        });
+      }
+      // Determine phase label
+      const remaining = allTeams.length;
+      const phase = remaining === 4 ? 'semi' : 'knockout';
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
+    }
     save();
     render();
   }
 
   function nextPhase() {
-    if (state.rounds.length === 0) {
-      showError('Shuffle teams first');
-      return;
-    }
+    if (state.rounds.length === 0) { showError('Shuffle teams first'); return; }
     const currentRound = state.rounds[state.rounds.length - 1];
     if (!allMatchesFinished(currentRound)) {
       showError('Finish all matches of the current phase first');
       return;
     }
-    const teamCount = (state.tournamentTeams || []).length;
-    const is4Team = teamCount === 4;
-    const isFinishedSemi = state.finalTopTeam !== null && currentRound.matches.length === 1 && currentRound.teams.length === 0;
-    const isFinishedFinal = state.finalTopTeam === null && currentRound.matches.length === 1 && currentRound.teams.length === 0;
-    if (isFinishedSemi) {
-      // Just finished the semi → schedule the final
-      generateFinalRound();
-      return;
-    }
-    if (isFinishedFinal) {
-      // Already a finished final
+
+    // If current round is a finished final → tournament over
+    if (currentRound.phase === 'final') {
       toast('Tournament completed');
       return;
     }
-    // Group stage just finished
-    if (is4Team) {
-      generateSemiRound();
+
+    // If we're already in a knockout/semi phase → advance to next knockout round
+    if (currentRound.phase === 'knockout' || currentRound.phase === 'semi') {
+      advanceKnockout();
+      return;
+    }
+
+    // Group stage just finished → start knockout
+    const teamStats = computeTeamStandings();
+    const teamCount = teamStats.length;
+
+    if (teamCount < 2) { showError('Not enough teams'); return; }
+
+    if (teamCount === 2) {
+      // Straight to final
+      state.knockoutByeTeams = [];
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'final',
+        matches: [{
+          id: uid(), a: teamStats[0].team, b: teamStats[1].team,
+          games: [{ a: 0, b: 0, finished: false }], winner: null,
+        }],
+      });
+      save(); render(); return;
+    }
+
+    if (teamCount === 3) {
+      // Top team gets a bye, 2nd vs 3rd in semi
+      state.knockoutByeTeams = [teamStats[0].team];
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'semi',
+        matches: [{
+          id: uid(), a: teamStats[1].team, b: teamStats[2].team,
+          games: [{ a: 0, b: 0, finished: false }], winner: null,
+        }],
+      });
+      save(); render(); return;
+    }
+
+    // 4+ teams: use bracket-based knockout
+    const bracket = knockoutBracketSize(teamCount);
+    const byes = bracket - teamCount;
+
+    if (teamCount === bracket) {
+      // Perfect bracket (4, 8, 16 teams…) — all play in pairs, no byes
+      // Seed: 1v(n), 2v(n-1), etc. but in rounds: split into halves
+      // For 4 teams: 1v4, 2v3 (semifinal), then final
+      // For 8 teams: QF round with 4 matches, then SF, then F
+      const phase = teamCount === 4 ? 'semi' : 'knockout';
+      state.knockoutByeTeams = [];
+      const matches = [];
+      for (let i = 0; i < teamCount / 2; i++) {
+        matches.push({
+          id: uid(),
+          a: teamStats[i].team,
+          b: teamStats[teamCount - 1 - i].team,
+          games: [{ a: 0, b: 0, finished: false }],
+          winner: null,
+        });
+      }
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
+      save(); render();
     } else {
-      // 3-team (or other): top 2 go straight to the final
-      const teamStats = computeTeamStandings();
-      if (teamStats.length < 2) { showError('Not enough teams for a final'); return; }
-      const finalMatch = {
-        id: uid(),
-        a: teamStats[0].team,
-        b: teamStats[1].team,
-        games: [{ a: 0, b: 0, finished: false }],
-        winner: null,
-      };
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches: [finalMatch], phase: 'final' });
-      save();
-      render();
+      // Imperfect bracket (5,6,7 teams etc.) — top `byes` teams sit out round 1
+      state.knockoutByeTeams = teamStats.slice(0, byes).map(s => s.team);
+      const playingTeams = teamStats.slice(byes);
+      const matches = [];
+      for (let i = 0; i < playingTeams.length / 2; i++) {
+        matches.push({
+          id: uid(),
+          a: playingTeams[i].team,
+          b: playingTeams[playingTeams.length - 1 - i].team,
+          games: [{ a: 0, b: 0, finished: false }],
+          winner: null,
+        });
+      }
+      const phase = (byes + matches.length) === 2 ? 'semi' : 'knockout';
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
+      save(); render();
     }
   }
 
@@ -521,15 +627,8 @@
         }
         // count games points
         for (const g of m.games) {
-          stats.get(m.a[0]).pointsFor += g.a;
-          stats.get(m.a[1]).pointsFor += g.a;
-          stats.get(m.b[0]).pointsFor += g.b;
-          stats.get(m.b[1]).pointsFor += g.b;
-          // points against
-          stats.get(m.a[0]).pointsAgainst += g.b;
-          stats.get(m.a[1]).pointsAgainst += g.b;
-          stats.get(m.b[0]).pointsAgainst += g.a;
-          stats.get(m.b[1]).pointsAgainst += g.a;
+          for (const p of m.a) { const s = stats.get(p); if (s) { s.pointsFor += g.a; s.pointsAgainst += g.b; } }
+          for (const p of m.b) { const s = stats.get(p); if (s) { s.pointsFor += g.b; s.pointsAgainst += g.a; } }
         }
         // win/loss per player
         if (m.winner) {
@@ -580,14 +679,12 @@
     renderTeams();
     renderMatches();
     renderStandings();
-    const playerCountOk = state.players.length === 6 || state.players.length === 8;
+    const playerCountOk = state.players.length >= 6 && state.players.length % 2 === 0;
     shuffleBtn.disabled = !playerCountOk || state.rounds.length > 0;
     const lastRound = state.rounds[state.rounds.length - 1];
     const tournamentOver = lastRound
-      && lastRound.matches.length === 1
-      && lastRound.teams.length === 0
-      && state.finalTopTeam === null
-      && lastRound.matches[0].winner;
+      && lastRound.phase === 'final'
+      && lastRound.matches[0] && lastRound.matches[0].winner;
     newRoundBtn.disabled = !lastRound || !allMatchesFinished(lastRound) || tournamentOver;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
   }
@@ -613,7 +710,7 @@
     const last = state.rounds[state.rounds.length - 1];
     if (!last) { area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>'; return; }
     const heading = document.createElement('h3');
-    if (last.phase === 'semi' || last.phase === 'final') {
+    if (last.phase === 'semi' || last.phase === 'final' || last.phase === 'knockout') {
       heading.textContent = phaseLabel(last);
       area.appendChild(heading);
       area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Teams are shown in the match below.' }));
@@ -639,6 +736,11 @@
   function phaseLabel(round) {
     if (round.phase === 'semi') return 'Semifinal';
     if (round.phase === 'final') return 'Final';
+    if (round.phase === 'knockout') {
+      const matchCount = round.matches.length;
+      if (matchCount === 4) return 'Quarterfinal';
+      return 'Knockout Round';
+    }
     return `Round ${round.number}`;
   }
 
