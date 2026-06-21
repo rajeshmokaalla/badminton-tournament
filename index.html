@@ -70,12 +70,47 @@
   .standings th, .standings td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--panel-2); }
   .standings th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
   .standings tr.winner td { color: var(--accent); font-weight: 600; }
-  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--warn); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: var(--shadow); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--warn); color: #fff; padding: 10px 16px; border-radius: 8px; box-shadow: var(--shadow); opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 999; }
   .toast.show { opacity: 1; }
   .footer-note { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
   .winner-banner { background: linear-gradient(135deg, #22c55e, #16a34a); color: #052e16; padding: 14px 18px; border-radius: 10px; font-size: 16px; font-weight: 600; margin-bottom: 14px; text-align: center; box-shadow: var(--shadow); }
   .winner-banner b { font-weight: 800; }
   .section-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+  /* ── Manual Team Builder ── */
+  .team-builder { margin-top: 16px; }
+  .team-builder-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .team-builder-header h3 { margin: 0; color: var(--text); font-size: 15px; }
+  .team-builder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .team-slot { background: var(--panel-2); border-radius: 10px; padding: 14px; border: 2px dashed #475569; transition: border-color 0.15s; }
+  .team-slot.has-players { border-style: solid; border-color: var(--accent); }
+  .team-slot-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .team-slot-title span { font-weight: 600; color: var(--accent); font-size: 14px; }
+  .team-slot-title button { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+  .team-slot-players { display: flex; flex-direction: column; gap: 6px; min-height: 36px; }
+  .team-slot-player { background: #0f172a; border-radius: 6px; padding: 6px 10px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .team-slot-player button { background: transparent; color: var(--muted); padding: 0; font-size: 15px; line-height: 1; }
+  .team-slot-player button:hover { color: var(--warn); background: transparent; }
+  .team-slot-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+  .player-pool { margin-top: 14px; }
+  .player-pool-title { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .player-pool-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pool-pill { background: var(--panel-2); border: 1px solid #475569; padding: 5px 11px; border-radius: 999px; font-size: 13px; cursor: pointer; transition: background 0.12s, border-color 0.12s; user-select: none; }
+  .pool-pill:hover { background: #475569; border-color: var(--accent); }
+  .pool-pill.selected { background: var(--accent); color: #052e16; border-color: var(--accent); font-weight: 600; }
+  .pool-pill.assigned { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .team-assign-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .team-assign-row label { font-size: 13px; color: var(--muted); }
+  .assign-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .assign-btn { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .mode-toggle { display: flex; gap: 0; background: var(--panel-2); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .mode-toggle button { background: transparent; color: var(--muted); border-radius: 0; flex: 1; padding: 8px 14px; font-size: 13px; font-weight: 500; border: none; transition: background 0.15s, color 0.15s; }
+  .mode-toggle button.active { background: var(--accent); color: #052e16; }
+  .mode-toggle button:hover:not(.active) { background: #475569; color: var(--text); }
+  .team-count-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .team-count-row label { font-size: 13px; color: var(--muted); }
+  .team-count-row input[type=number] { width: 64px; background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 6px 10px; border-radius: 8px; font-size: 14px; }
+
   @media (max-width: 600px) {
     h1 { font-size: 22px; }
     .container { padding: 16px 12px 80px; }
@@ -91,6 +126,7 @@
     .section-title-row .actions { width: 100%; }
     .section-title-row .actions button { flex: 1; }
     body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+    .team-builder-grid { grid-template-columns: 1fr; }
   }
   .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
   .header-row .header-text { flex: 1; min-width: 0; }
@@ -104,7 +140,7 @@
   <div class="header-row">
     <div class="header-text">
       <h1>🏸 Badminton Tournament</h1>
-      <div class="subtitle">Doubles round-robin · BWF scoring (single game to 21)</div>
+      <div class="subtitle" id="subtitleText">Round-robin · BWF scoring (single game to 21)</div>
     </div>
     <button id="installBtn" class="secondary install-btn" type="button">📲 Install app</button>
   </div>
@@ -117,17 +153,58 @@
       <button class="secondary" id="clearPlayersBtn">Clear All</button>
     </div>
     <div class="player-list" id="playerList"></div>
-    <div class="empty" id="playerEmpty">No players added yet. Add an even number of players (6, 8, 10, 12 …) to start.</div>
+    <div class="empty" id="playerEmpty">No players added yet. Add at least 2 players to start.</div>
   </div>
 
   <div class="panel">
     <div class="section-title-row">
-      <h2>2. Round</h2>
-      <div class="actions">
-        <button id="shuffleBtn" disabled>🎲 Shuffle Teams</button>
+      <h2>2. Teams</h2>
+      <div class="actions" id="roundActions">
+        <button id="shuffleBtn" disabled>🎲 Auto-assign Teams</button>
         <button class="secondary" id="newRoundBtn" disabled>Next Phase</button>
       </div>
     </div>
+
+    <!-- Mode toggle: only visible before tournament starts -->
+    <div id="teamSetupArea">
+      <div class="mode-toggle" id="modeToggle">
+        <button id="modeAuto" class="active">🎲 Random</button>
+        <button id="modeManual">✏️ Manual</button>
+      </div>
+
+      <!-- Team type toggle: Singles / Doubles -->
+      <div class="mode-toggle" id="typeToggle" style="max-width:300px">
+        <button id="typeDoubles" class="active">👥 Doubles</button>
+        <button id="typeSingles">🧍 Singles</button>
+        <button id="typeMixed">🔀 Mixed</button>
+      </div>
+
+      <!-- Manual builder (hidden by default) -->
+      <div id="manualBuilder" style="display:none">
+        <div class="team-count-row">
+          <label>Number of teams:</label>
+          <input type="number" id="teamCountInput" min="2" max="20" value="4" />
+          <button class="secondary" id="applyTeamCount" style="padding:6px 12px;font-size:13px">Apply</button>
+        </div>
+        <div class="team-builder" id="teamBuilder"></div>
+
+        <div class="player-pool">
+          <div class="player-pool-title">Unassigned players — click a player, then click a team slot to assign:</div>
+          <div class="player-pool-list" id="playerPool"></div>
+          <div class="team-assign-row" id="assignRow" style="display:none">
+            <label id="assignLabel">Assign <b id="assignPlayerName"></b> to:</label>
+            <div class="assign-btns" id="assignBtns"></div>
+            <button class="secondary" style="padding:5px 10px;font-size:12px" id="cancelAssign">Cancel</button>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button id="startManualBtn" disabled>▶ Start Tournament</button>
+          <button class="secondary" id="clearTeamsBtn">Clear Teams</button>
+        </div>
+      </div>
+    </div>
+
     <div id="teamsArea"></div>
   </div>
 
@@ -156,29 +233,35 @@
 (function() {
   'use strict';
 
-  const STORAGE_KEY = 'badminton-tournament-v2';
-  const GAMES_TO_WIN = 1; // single game per match
+  const STORAGE_KEY = 'badminton-tournament-v3';
+  const GAMES_TO_WIN = 1;
   const POINTS_PER_GAME = 21;
-  const SIDE_SWITCH = 11; // game 3 only
+  const SIDE_SWITCH = 11;
 
   const defaultState = () => ({
     players: [],
-    rounds: [],   // each: { number, teams: [[p1,p2], ...], matches: [{id, a:[p1,p2], b:[p1,p2], games:[{a,b,winner}], winner:null}] }
-    history: [],  // for undo
-    tournamentTeams: [], // fixed teams for the tournament (shuffled once)
-    finalTopTeam: null, // legacy (kept for old saves)
-    knockoutByeTeams: [], // teams that have a bye in current knockout round
-    fiveTeamQF: null, // { qf1Winner, qf1Loser, qf2Winner } used for 5-team bracket
+    rounds: [],
+    history: [],
+    tournamentTeams: [],
+    finalTopTeam: null,
+    knockoutByeTeams: [],
+    fiveTeamQF: null,
+    teamMode: 'doubles',  // 'singles' | 'doubles' | 'mixed'
+    setupMode: 'auto',    // 'auto' | 'manual'
+    manualTeams: [],      // draft teams during manual setup
+    teamCount: 4,
   });
 
   let state = load();
+
+  // ── selected player in manual builder ──
+  let selectedPoolPlayer = null;
 
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return defaultState();
-      const parsed = JSON.parse(raw);
-      return { ...defaultState(), ...parsed };
+      return { ...defaultState(), ...JSON.parse(raw) };
     } catch (e) { return defaultState(); }
   }
 
@@ -195,16 +278,17 @@
 
   function showError(msg) { toast(msg); }
 
-  function esc(s) { return String(s).replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   window.addEventListener('error', e => { toast('Something went wrong: ' + (e.message || 'unknown error')); });
 
-  // ---- Players ----
+  // ─────────────────────────────────────────────
+  // Players
+  // ─────────────────────────────────────────────
   const playerInput = document.getElementById('playerInput');
-  const addPlayerBtn = document.getElementById('addPlayerBtn');
-  const clearPlayersBtn = document.getElementById('clearPlayersBtn');
-  const playerList = document.getElementById('playerList');
-  const playerEmpty = document.getElementById('playerEmpty');
+  document.getElementById('addPlayerBtn').addEventListener('click', addPlayer);
+  document.getElementById('clearPlayersBtn').addEventListener('click', clearPlayers);
+  playerInput.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
 
   function addPlayer() {
     const name = playerInput.value.trim();
@@ -217,7 +301,10 @@
   }
 
   function removePlayer(name) {
+    if (state.rounds.length > 0) { showError('Cannot remove players after tournament starts'); return; }
     state.players = state.players.filter(p => p !== name);
+    // also remove from manual teams
+    state.manualTeams = state.manualTeams.map(t => t.filter(p => p !== name));
     save();
     render();
   }
@@ -230,70 +317,82 @@
     render();
   }
 
-  playerInput.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
-  addPlayerBtn.addEventListener('click', addPlayer);
-  clearPlayersBtn.addEventListener('click', clearPlayers);
+  // ─────────────────────────────────────────────
+  // Mode toggles (auto/manual, singles/doubles/mixed)
+  // ─────────────────────────────────────────────
+  document.getElementById('modeAuto').addEventListener('click', () => { state.setupMode = 'auto'; save(); render(); });
+  document.getElementById('modeManual').addEventListener('click', () => { state.setupMode = 'manual'; save(); render(); });
+  document.getElementById('typeDoubles').addEventListener('click', () => { state.teamMode = 'doubles'; save(); render(); });
+  document.getElementById('typeSingles').addEventListener('click', () => { state.teamMode = 'singles'; state.teamCount = state.players.length || 2; save(); render(); });
+  document.getElementById('typeMixed').addEventListener('click', () => { state.teamMode = 'mixed'; save(); render(); });
 
-  // ---- Shuffle (create fixed teams) ----
+  document.getElementById('teamCountInput').addEventListener('change', e => {
+    const v = parseInt(e.target.value, 10);
+    if (!isNaN(v) && v >= 2) state.teamCount = v;
+    save();
+    syncManualTeamSlots();
+    render();
+  });
+  document.getElementById('applyTeamCount').addEventListener('click', () => {
+    const v = parseInt(document.getElementById('teamCountInput').value, 10);
+    if (!isNaN(v) && v >= 2) { state.teamCount = v; save(); }
+    syncManualTeamSlots();
+    render();
+  });
+
+  function maxPlayersPerTeam() {
+    if (state.teamMode === 'singles') return 1;
+    if (state.teamMode === 'doubles') return 2;
+    return 2; // mixed: also 2
+  }
+
+  // Ensure manualTeams array has correct length
+  function syncManualTeamSlots() {
+    const count = state.teamCount;
+    while (state.manualTeams.length < count) state.manualTeams.push([]);
+    while (state.manualTeams.length > count) state.manualTeams.pop();
+  }
+
+  document.getElementById('clearTeamsBtn').addEventListener('click', () => {
+    state.manualTeams = state.manualTeams.map(() => []);
+    selectedPoolPlayer = null;
+    save();
+    render();
+  });
+
+  document.getElementById('cancelAssign').addEventListener('click', () => {
+    selectedPoolPlayer = null;
+    render();
+  });
+
+  // ─────────────────────────────────────────────
+  // Shuffle / Auto-assign
+  // ─────────────────────────────────────────────
   const shuffleBtn = document.getElementById('shuffleBtn');
   const newRoundBtn = document.getElementById('newRoundBtn');
 
-  function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
-  function makeTeams(players) {
+  function makeTeamsAuto(players) {
+    const maxPPT = maxPlayersPerTeam();
+    const shuffled = shuffle(players);
     const teams = [];
-    for (let i = 0; i < players.length; i += 2) {
-      if (i + 1 < players.length) teams.push([players[i], players[i + 1]]);
-      else teams.push([players[i]]); // fallback if odd number
+    for (let i = 0; i < shuffled.length; i += maxPPT) {
+      teams.push(shuffled.slice(i, i + maxPPT));
     }
     return teams;
   }
 
-  // Generate matches where each team plays up to two games against distinct opponents
-  function generateGroupMatches(teams) {
-    const n = teams.length;
-    const matchCounts = new Array(n).fill(0);
-    const matches = [];
-    const possiblePairs = [];
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) possiblePairs.push([i, j]);
-    }
-    // shuffle possible pairs
-    const shuffledPairs = shuffle(possiblePairs);
-    for (const [i, j] of shuffledPairs) {
-      if (matchCounts[i] < 2 && matchCounts[j] < 2) {
-        matches.push({ a: teams[i], b: teams[j] });
-        matchCounts[i]++; matchCounts[j]++;
-        if (matchCounts.every(c => c === 2)) break;
-      }
-    }
-    // If we have exactly two teams and they have less than 2 matches, schedule duplicate matches to reach 2 each
-    if (n === 2) {
-      while (matchCounts[0] < 2) {
-        matches.push({ a: teams[0], b: teams[1] });
-        matchCounts[0]++; matchCounts[1]++;
-      }
-    }
-    // Convert to match objects used by the app
-    return matches.map(pair => ({
-      id: uid(),
-      a: pair.a,
-      b: pair.b,
-      games: [{ a: 0, b: 0, finished: false }],
-      winner: null,
-    }));
-  }
-
-  function startGroupStage() {
-    // Require an even number of players, at least 6
-    if (state.players.length < 6 || state.players.length % 2 !== 0) {
-      showError('Need an even number of players (6, 8, 10, 12 …)');
-      return;
-    }
+  function startGroupStage(teams) {
+    if (teams.length < 2) { showError('Need at least 2 teams to start'); return; }
     if (state.rounds.length > 0) { showError('Tournament already started'); return; }
-    // Shuffle players, then pair sequentially into 2-player teams
-    const shuffled = shuffle(state.players);
-    const teams = makeTeams(shuffled);
     state.tournamentTeams = teams;
     const scheduleRounds = buildSchedule(teams);
     scheduleRounds.forEach((pairs, idx) => {
@@ -310,51 +409,54 @@
     render();
   }
 
-  // Build a round-robin schedule using the circle/polygon method.
-  // Works for any number of teams n ≥ 2.
-  // Returns an array of rounds; each round is an array of [teamA, teamB] index pairs.
+  shuffleBtn.addEventListener('click', () => {
+    if (state.players.length < 2) { showError('Need at least 2 players'); return; }
+    const teams = makeTeamsAuto(state.players);
+    startGroupStage(teams);
+  });
+
+  document.getElementById('startManualBtn').addEventListener('click', () => {
+    const teams = state.manualTeams.filter(t => t.length > 0);
+    if (teams.length < 2) { showError('Need at least 2 teams with players'); return; }
+    startGroupStage(teams);
+  });
+
+  // ─────────────────────────────────────────────
+  // Round schedule
+  // ─────────────────────────────────────────────
   function buildSchedule(teams) {
     const n = teams.length;
     if (n < 2) return [];
-
     if (n === 3) {
-      // 3-team: each pair plays twice (double round robin) so each team gets 2 games
       return [
-        [[0, 1], [1, 2], [2, 0]],
-        [[1, 0], [2, 1], [0, 2]],
+        [[0,1],[1,2],[2,0]],
+        [[1,0],[2,1],[0,2]],
       ];
     }
-
-    // Circle method for even n:
-    // Fix team 0; rotate teams 1..n-1 each round.
-    // For odd n, add a virtual "bye" team to make it even, then remove those matches.
     const useN = n % 2 === 0 ? n : n + 1;
     const rounds = [];
     const circle = [];
-    for (let i = 1; i < useN; i++) circle.push(i); // teams 1..useN-1
-
+    for (let i = 1; i < useN; i++) circle.push(i);
     for (let r = 0; r < useN - 1; r++) {
       const round = [];
-      // Fixed team 0 vs the team at the end of the circle
       const opp = circle[circle.length - 1];
-      if (opp < n) round.push([0, opp]); // skip if opp is the virtual bye
-      // Pair up the rest of the circle
+      if (opp < n) round.push([0, opp]);
       for (let i = 0; i < Math.floor((useN - 2) / 2); i++) {
         const a = circle[i];
         const b = circle[useN - 2 - i];
         if (a < n && b < n) round.push([a, b]);
       }
       rounds.push(round);
-      // Rotate circle by 1
       circle.unshift(circle.pop());
     }
     return rounds;
   }
 
-  // Helper to check if all matches in a round have a winner (or are byes)
   function allMatchesFinished(round) { return round.matches.every(m => m.winner); }
 
-  // ---- Knockout phases ----
+  // ─────────────────────────────────────────────
+  // Knockout
+  // ─────────────────────────────────────────────
   function computeTeamStandings() {
     const teams = state.tournamentTeams || [];
     const teamStats = teams.map(team => {
@@ -362,11 +464,8 @@
       return { team, key, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 };
     });
     const teamByKey = new Map(teamStats.map(t => [t.key, t]));
-    function findTeam(team) {
-      return teamByKey.get(team.slice().sort().join('|'));
-    }
+    function findTeam(team) { return teamByKey.get(team.slice().sort().join('|')); }
     for (const round of state.rounds) {
-      // Only count group-stage rounds for standings (not knockout phases)
       if (round.phase && round.phase !== 'group') continue;
       for (const m of round.matches) {
         if (m.bye) continue;
@@ -382,240 +481,112 @@
         }
       }
     }
-    teamStats.forEach(s => {
-      s.played = s.wins + s.losses;
-      s.diff = s.pointsFor - s.pointsAgainst;
-    });
-    teamStats.sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      return b.diff - a.diff;
-    });
+    teamStats.forEach(s => { s.played = s.wins + s.losses; s.diff = s.pointsFor - s.pointsAgainst; });
+    teamStats.sort((a, b) => b.wins !== a.wins ? b.wins - a.wins : b.diff - a.diff);
     return teamStats;
   }
 
-  // Return the largest power-of-2 ≤ n (e.g. 5→4, 6→4, 8→8)
-  function knockoutBracketSize(n) {
-    let size = 1;
-    while (size * 2 <= n) size *= 2;
-    return size;
-  }
+  function knockoutBracketSize(n) { let size = 1; while (size * 2 <= n) size *= 2; return size; }
 
-  // Generate a single knockout round from a list of teams (ordered best-to-worst).
-  // Seeds them so #1 plays #last, #2 plays #second-last, etc.
-  // If there are more teams than bracket slots, top teams get byes.
-  function generateKnockoutRound(teamStats, phase) {
-    const n = teamStats.length;
-    const bracket = knockoutBracketSize(n);
-    const byes = bracket - n; // top `byes` teams skip straight to the next round
-    // The teams that actually play this round
-    const playing = teamStats.slice(byes); // worst (n - bracket/2 * 2)? Actually:
-    // We want bracket/2 matches from the bottom seeds, byes go to top seeds.
-    // playing teams: those not getting a bye
-    const playingTeams = teamStats.slice(byes).map(s => s.team);
-    const matches = [];
-    for (let i = 0; i < Math.floor(playingTeams.length / 2); i++) {
-      matches.push({
-        id: uid(),
-        a: playingTeams[i],
-        b: playingTeams[playingTeams.length - 1 - i],
-        games: [{ a: 0, b: 0, finished: false }],
-        winner: null,
-      });
-    }
-    // Store bye teams so next round can use them
-    state.knockoutByeTeams = teamStats.slice(0, byes).map(s => s.team);
-    state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
-    save();
-    render();
-  }
-
-  // Advance knockout: collect winners from last round + stored bye teams → next round or final
   function advanceKnockout() {
     const lastRound = state.rounds[state.rounds.length - 1];
-
-    // ── 5-team IPL bracket: Q1 + Eliminator round finished → create Q2 ──
     if (lastRound.phase === 'five_team_q1_elim') {
-      const q1      = lastRound.matches[0]; // Q1: #1 vs #2
-      const elim    = lastRound.matches[1]; // Eliminator: #3 vs #4
-      const q1Winner   = q1[q1.winner];
-      const q1Loser    = q1[q1.winner === 'a' ? 'b' : 'a'];
+      const q1 = lastRound.matches[0];
+      const elim = lastRound.matches[1];
+      const q1Winner = q1[q1.winner];
+      const q1Loser = q1[q1.winner === 'a' ? 'b' : 'a'];
       const elimWinner = elim[elim.winner];
-      // Store Q1 winner for Final
       state.fiveTeamQF = { q1Winner };
-      // Q2: Loser of Q1 vs Winner of Eliminator
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'five_team_q2',
-        matches: [{
-          id: uid(), a: q1Loser, b: elimWinner,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'Q2',
-        }],
+        matches: [{ id: uid(), a: q1Loser, b: elimWinner, games: [{a:0,b:0,finished:false}], winner: null, label: 'Q2' }],
       });
       save(); render(); return;
     }
-
-    // ── 5-team IPL bracket: Q2 finished → create Final ──
     if (lastRound.phase === 'five_team_q2') {
       const q2 = lastRound.matches[0];
-      const q2Winner = q2[q2.winner];
-      const q1Winner = state.fiveTeamQF.q1Winner;
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'final',
-        matches: [{
-          id: uid(), a: q1Winner, b: q2Winner,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-        }],
+        matches: [{ id: uid(), a: state.fiveTeamQF.q1Winner, b: q2[q2.winner], games: [{a:0,b:0,finished:false}], winner: null }],
       });
       save(); render(); return;
     }
-
     const winners = lastRound.matches.map(m => m[m.winner]);
     const byeTeams = state.knockoutByeTeams || [];
-    const allTeams = [...byeTeams, ...winners]; // best seeds first (byes are top seeds)
+    const allTeams = [...byeTeams, ...winners];
     state.knockoutByeTeams = [];
-
     if (allTeams.length === 2) {
-      // Final
       state.rounds.push({
-        number: state.rounds.length + 1,
-        teams: [],
-        matches: [{
-          id: uid(), a: allTeams[0], b: allTeams[1],
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-        }],
+        number: state.rounds.length + 1, teams: [],
+        matches: [{ id: uid(), a: allTeams[0], b: allTeams[1], games: [{a:0,b:0,finished:false}], winner: null }],
         phase: 'final',
       });
     } else {
-      // Another knockout round
       const matches = [];
       for (let i = 0; i < Math.floor(allTeams.length / 2); i++) {
-        matches.push({
-          id: uid(),
-          a: allTeams[i],
-          b: allTeams[allTeams.length - 1 - i],
-          games: [{ a: 0, b: 0, finished: false }],
-          winner: null,
-        });
+        matches.push({ id: uid(), a: allTeams[i], b: allTeams[allTeams.length-1-i], games: [{a:0,b:0,finished:false}], winner: null });
       }
-      const remaining = allTeams.length;
-      const phase = remaining === 4 ? 'semi' : 'knockout';
+      const phase = allTeams.length === 4 ? 'semi' : 'knockout';
       state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
     }
-    save();
-    render();
+    save(); render();
   }
 
   function nextPhase() {
-    if (state.rounds.length === 0) { showError('Shuffle teams first'); return; }
+    if (state.rounds.length === 0) { showError('Start the tournament first'); return; }
     const currentRound = state.rounds[state.rounds.length - 1];
-    if (!allMatchesFinished(currentRound)) {
-      showError('Finish all matches of the current phase first');
-      return;
+    if (!allMatchesFinished(currentRound)) { showError('Finish all matches of the current phase first'); return; }
+    if (currentRound.phase === 'final') { toast('Tournament completed'); return; }
+    if (['knockout','semi','five_team_q1_elim','five_team_q2'].includes(currentRound.phase)) {
+      advanceKnockout(); return;
     }
-
-    // If current round is a finished final → tournament over
-    if (currentRound.phase === 'final') {
-      toast('Tournament completed');
-      return;
-    }
-
-    // If we're already in a knockout/semi/5-team phase → advance to next knockout round
-    if (currentRound.phase === 'knockout' || currentRound.phase === 'semi' ||
-        currentRound.phase === 'five_team_q1_elim' || currentRound.phase === 'five_team_q2') {
-      advanceKnockout();
-      return;
-    }
-
-    // Group stage just finished → start knockout
     const teamStats = computeTeamStandings();
     const teamCount = teamStats.length;
-
     if (teamCount < 2) { showError('Not enough teams'); return; }
-
     if (teamCount === 2) {
-      // Straight to final
       state.knockoutByeTeams = [];
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'final',
-        matches: [{
-          id: uid(), a: teamStats[0].team, b: teamStats[1].team,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-        }],
+        matches: [{ id: uid(), a: teamStats[0].team, b: teamStats[1].team, games: [{a:0,b:0,finished:false}], winner: null }],
       });
       save(); render(); return;
     }
-
     if (teamCount === 3) {
-      // Top team gets a bye, 2nd vs 3rd in semi
       state.knockoutByeTeams = [teamStats[0].team];
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'semi',
-        matches: [{
-          id: uid(), a: teamStats[1].team, b: teamStats[2].team,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-        }],
+        matches: [{ id: uid(), a: teamStats[1].team, b: teamStats[2].team, games: [{a:0,b:0,finished:false}], winner: null }],
       });
       save(); render(); return;
     }
-
-    // ── 5-team IPL bracket ──
     if (teamCount === 5) {
-      // Q1: #1 vs #2  → Winner → Final directly | Loser → Q2
-      // Eliminator: #3 vs #4 → Winner → Q2 | Loser eliminated (#5 already out)
-      state.fiveTeamQF = null;
-      state.knockoutByeTeams = [];
-      const matches = [
-        {
-          id: uid(), a: teamStats[0].team, b: teamStats[1].team,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'Q1 (#1 vs #2)',
-        },
-        {
-          id: uid(), a: teamStats[2].team, b: teamStats[3].team,
-          games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'Eliminator (#3 vs #4)',
-        },
-      ];
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase: 'five_team_q1_elim' });
+      state.fiveTeamQF = null; state.knockoutByeTeams = [];
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'five_team_q1_elim',
+        matches: [
+          { id: uid(), a: teamStats[0].team, b: teamStats[1].team, games: [{a:0,b:0,finished:false}], winner: null, label: 'Q1 (#1 vs #2)' },
+          { id: uid(), a: teamStats[2].team, b: teamStats[3].team, games: [{a:0,b:0,finished:false}], winner: null, label: 'Eliminator (#3 vs #4)' },
+        ],
+      });
       save(); render(); return;
     }
-
-    // 4+ teams: use bracket-based knockout
     const bracket = knockoutBracketSize(teamCount);
     const byes = bracket - teamCount;
-
     if (teamCount === bracket) {
-      // Perfect bracket (4, 8, 16 teams…) — all play in pairs, no byes
-      // Seed: 1v(n), 2v(n-1), etc. but in rounds: split into halves
-      // For 4 teams: 1v4, 2v3 (semifinal), then final
-      // For 8 teams: QF round with 4 matches, then SF, then F
       const phase = teamCount === 4 ? 'semi' : 'knockout';
       state.knockoutByeTeams = [];
       const matches = [];
       for (let i = 0; i < teamCount / 2; i++) {
-        matches.push({
-          id: uid(),
-          a: teamStats[i].team,
-          b: teamStats[teamCount - 1 - i].team,
-          games: [{ a: 0, b: 0, finished: false }],
-          winner: null,
-        });
+        matches.push({ id: uid(), a: teamStats[i].team, b: teamStats[teamCount-1-i].team, games: [{a:0,b:0,finished:false}], winner: null });
       }
       state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
       save(); render();
     } else {
-      // Imperfect bracket (5,6,7 teams etc.) — top `byes` teams sit out round 1
       state.knockoutByeTeams = teamStats.slice(0, byes).map(s => s.team);
       const playingTeams = teamStats.slice(byes);
       const matches = [];
       for (let i = 0; i < playingTeams.length / 2; i++) {
-        matches.push({
-          id: uid(),
-          a: playingTeams[i].team,
-          b: playingTeams[playingTeams.length - 1 - i].team,
-          games: [{ a: 0, b: 0, finished: false }],
-          winner: null,
-        });
+        matches.push({ id: uid(), a: playingTeams[i].team, b: playingTeams[playingTeams.length-1-i].team, games: [{a:0,b:0,finished:false}], winner: null });
       }
       const phase = (byes + matches.length) === 2 ? 'semi' : 'knockout';
       state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
@@ -623,18 +594,18 @@
     }
   }
 
-  shuffleBtn.addEventListener('click', startGroupStage);
   newRoundBtn.addEventListener('click', nextPhase);
 
-  // ---- Scoring ----
+  // ─────────────────────────────────────────────
+  // Scoring
+  // ─────────────────────────────────────────────
   function currentMatch(roundIdx, matchId) {
     const round = state.rounds[roundIdx];
-    if (!round) return null;
-    return round.matches.find(m => m.id === matchId) || null;
+    return round ? round.matches.find(m => m.id === matchId) || null : null;
   }
 
   function snapshot() { return JSON.stringify({ players: state.players, rounds: state.rounds }); }
-  function restoreSnapshot(s) { const parsed = JSON.parse(s); state.players = parsed.players; state.rounds = parsed.rounds; }
+  function restoreSnapshot(s) { const p = JSON.parse(s); state.players = p.players; state.rounds = p.rounds; }
   function pushHistory() { state.history.push(snapshot()); if (state.history.length > 50) state.history.shift(); }
 
   function scorePoint(roundIdx, matchId, side) {
@@ -652,109 +623,90 @@
         current.winner = a > b ? 'a' : 'b';
       }
     }
-    // Check match win
     let aWins = 0, bWins = 0;
-    for (const g of match.games) {
-      if (g.winner === 'a') aWins++;
-      else if (g.winner === 'b') bWins++;
-    }
+    for (const g of match.games) { if (g.winner === 'a') aWins++; else if (g.winner === 'b') bWins++; }
     if (aWins >= GAMES_TO_WIN) match.winner = 'a';
     else if (bWins >= GAMES_TO_WIN) match.winner = 'b';
-    else if (aWins + bWins === GAMES_TO_WIN - 1 && (aWins === GAMES_TO_WIN - 1 || bWins === GAMES_TO_WIN - 1)) {
-      if (match.games.length < GAMES_TO_WIN) match.games.push({ a: 0, b: 0, finished: false });
-    }
-    save();
-    render();
+    save(); render();
   }
 
-  function undoLastPoint() {
+  document.getElementById('undoBtn').addEventListener('click', () => {
     if (state.history.length === 0) { showError('Nothing to undo'); return; }
-    const prev = state.history.pop();
-    restoreSnapshot(prev);
-    save();
-    render();
-  }
+    restoreSnapshot(state.history.pop());
+    save(); render();
+  });
 
-  document.getElementById('undoBtn').addEventListener('click', undoLastPoint);
-
-  // ---- Standings ----
+  // ─────────────────────────────────────────────
+  // Standings
+  // ─────────────────────────────────────────────
   function computeStandings() {
     const stats = new Map();
     for (const p of state.players) stats.set(p, { name: p, played: 0, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 });
     for (const round of state.rounds) {
       for (const m of round.matches) {
-        if (m.bye) {
-          for (const p of m.a) { const s = stats.get(p); if (s) s.played++; }
-          continue;
-        }
-        // count games points
+        if (m.bye) { for (const p of m.a) { const s = stats.get(p); if (s) s.played++; } continue; }
         for (const g of m.games) {
           for (const p of m.a) { const s = stats.get(p); if (s) { s.pointsFor += g.a; s.pointsAgainst += g.b; } }
           for (const p of m.b) { const s = stats.get(p); if (s) { s.pointsFor += g.b; s.pointsAgainst += g.a; } }
         }
-        // win/loss per player
         if (m.winner) {
-          const winningTeam = m[m.winner];
-          const losingTeam = m[m.winner === 'a' ? 'b' : 'a'];
-          for (const p of winningTeam) { const s = stats.get(p); if (s) s.wins++; }
-          for (const p of losingTeam) { const s = stats.get(p); if (s) s.losses++; }
+          const win = m[m.winner]; const lose = m[m.winner === 'a' ? 'b' : 'a'];
+          for (const p of win) { const s = stats.get(p); if (s) s.wins++; }
+          for (const p of lose) { const s = stats.get(p); if (s) s.losses++; }
         }
-        // played count per player
-        for (const side of ['a', 'b']) {
-          const team = m[side];
-          if (!team) continue;
-          for (const p of team) { const s = stats.get(p); if (s) s.played++; }
-        }
+        for (const side of ['a','b']) { const team = m[side]; if (team) for (const p of team) { const s = stats.get(p); if (s) s.played++; } }
       }
     }
-    return [...stats.values()].sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      const aDiff = a.pointsFor - a.pointsAgainst;
-      const bDiff = b.pointsFor - b.pointsAgainst;
-      return bDiff - aDiff;
-    });
+    return [...stats.values()].sort((a, b) => b.wins !== a.wins ? b.wins - a.wins : (b.pointsFor-b.pointsAgainst) - (a.pointsFor-a.pointsAgainst));
   }
 
-  // ---- Export ----
+  // ─────────────────────────────────────────────
+  // Export / Reset
+  // ─────────────────────────────────────────────
   document.getElementById('exportBtn').addEventListener('click', () => {
-    const data = JSON.stringify(state, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `badminton-tournament-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
+    a.href = url; a.download = `badminton-tournament-${new Date().toISOString().slice(0,10)}.json`; a.click();
     URL.revokeObjectURL(url);
   });
 
-  // ---- Reset ----
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (!confirm('Reset the entire tournament? This cannot be undone')) return;
-    state = defaultState();
-    save();
-    render();
+    state = defaultState(); save(); render();
   });
 
-  // ---- Render ----
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
   function render() {
     renderPlayers();
+    renderSetupArea();
     renderTeams();
     renderMatches();
     renderStandings();
-    const playerCountOk = state.players.length >= 6 && state.players.length % 2 === 0;
-    shuffleBtn.disabled = !playerCountOk || state.rounds.length > 0;
+
     const lastRound = state.rounds[state.rounds.length - 1];
-    const tournamentOver = lastRound
-      && lastRound.phase === 'final'
-      && lastRound.matches[0] && lastRound.matches[0].winner;
+    const tournamentOver = lastRound && lastRound.phase === 'final' && lastRound.matches[0]?.winner;
+
+    shuffleBtn.disabled = state.players.length < 2 || state.rounds.length > 0;
+    shuffleBtn.textContent = state.setupMode === 'auto' ? '🎲 Auto-assign & Start' : '🎲 Random';
     newRoundBtn.disabled = !lastRound || !allMatchesFinished(lastRound) || tournamentOver;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
+
+    // subtitle
+    const mode = state.teamMode === 'singles' ? 'Singles' : state.teamMode === 'mixed' ? 'Mixed' : 'Doubles';
+    document.getElementById('subtitleText').textContent = `${mode} round-robin · BWF scoring (single game to 21)`;
   }
 
   function renderPlayers() {
+    const playerList = document.getElementById('playerList');
+    const playerEmpty = document.getElementById('playerEmpty');
     playerList.innerHTML = '';
-    if (state.players.length === 0) { playerEmpty.style.display = 'block'; }
-    else { playerEmpty.style.display = 'none';
+    if (state.players.length === 0) {
+      playerEmpty.style.display = 'block';
+    } else {
+      playerEmpty.style.display = 'none';
       for (const p of state.players) {
         const pill = document.createElement('span');
         pill.className = 'pill';
@@ -766,34 +718,164 @@
     }
   }
 
-  function renderTeams() {
-    const area = document.getElementById('teamsArea');
-    area.innerHTML = '';
-    const last = state.rounds[state.rounds.length - 1];
-    if (!last) { area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>'; return; }
-    const heading = document.createElement('h3');
-    if (last.phase === 'semi' || last.phase === 'final' || last.phase === 'knockout' ||
-        last.phase === 'five_team_q1_elim' || last.phase === 'five_team_q2') {
-      heading.textContent = phaseLabel(last);
-      area.appendChild(heading);
-      area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Teams are shown in the match below.' }));
+  function renderSetupArea() {
+    const setupArea = document.getElementById('teamSetupArea');
+    const manualBuilder = document.getElementById('manualBuilder');
+    const modeToggle = document.getElementById('modeToggle');
+    const typeToggle = document.getElementById('typeToggle');
+
+    // Hide setup controls once tournament started
+    if (state.rounds.length > 0) {
+      setupArea.style.display = 'none';
       return;
     }
-    heading.textContent = `${phaseLabel(last)} — ${last.teams.length} teams`;
-    area.appendChild(heading);
+    setupArea.style.display = '';
+
+    // Sync mode toggle button states
+    document.getElementById('modeAuto').classList.toggle('active', state.setupMode === 'auto');
+    document.getElementById('modeManual').classList.toggle('active', state.setupMode === 'manual');
+    document.getElementById('typeDoubles').classList.toggle('active', state.teamMode === 'doubles');
+    document.getElementById('typeSingles').classList.toggle('active', state.teamMode === 'singles');
+    document.getElementById('typeMixed').classList.toggle('active', state.teamMode === 'mixed');
+
+    // Singles: lock team count = player count (1 player per team)
+    if (state.teamMode === 'singles') {
+      state.teamCount = state.players.length;
+      document.getElementById('teamCountInput').value = state.teamCount;
+    }
+
+    const showManual = state.setupMode === 'manual';
+    shuffleBtn.style.display = showManual ? 'none' : '';
+    manualBuilder.style.display = showManual ? '' : 'none';
+
+    if (showManual) {
+      syncManualTeamSlots();
+      renderManualBuilder();
+    }
+  }
+
+  function renderManualBuilder() {
+    const builder = document.getElementById('teamBuilder');
+    const pool = document.getElementById('playerPool');
+    const assignRow = document.getElementById('assignRow');
+    const maxPPT = maxPlayersPerTeam();
+
+    // Update team count input
+    document.getElementById('teamCountInput').value = state.teamCount;
+    // Disable team count input for singles
+    document.getElementById('teamCountInput').disabled = state.teamMode === 'singles';
+    document.getElementById('applyTeamCount').disabled = state.teamMode === 'singles';
+
+    // Build assigned set
+    const assignedPlayers = new Set(state.manualTeams.flat());
+
+    // Team slots
+    builder.innerHTML = '';
     const grid = document.createElement('div');
-    grid.className = 'teams';
-    last.teams.forEach((team, idx) => {
-      const div = document.createElement('div');
-      div.className = 'team';
-      if (team.length === 1) {
-        div.innerHTML = `<div class="team-title">Team ${idx + 1}</div><div class="bye">${team[0]} (bye)</div>`;
+    grid.className = 'team-builder-grid';
+
+    state.manualTeams.forEach((team, tIdx) => {
+      const slot = document.createElement('div');
+      slot.className = 'team-slot' + (team.length > 0 ? ' has-players' : '');
+
+      const isFull = team.length >= maxPPT;
+
+      const titleRow = document.createElement('div');
+      titleRow.className = 'team-slot-title';
+      titleRow.innerHTML = `<span>Team ${tIdx + 1}${team.length === 1 && maxPPT > 1 ? ' 🧍' : team.length === 2 ? ' 👥' : ''}</span>`;
+
+      const playersDiv = document.createElement('div');
+      playersDiv.className = 'team-slot-players';
+
+      if (team.length === 0) {
+        playersDiv.innerHTML = `<span class="team-slot-empty">No players yet</span>`;
       } else {
-        div.innerHTML = `<div class="team-title">Team ${idx + 1}</div><div>${esc(team[0])} &amp; ${esc(team[1])}</div>`;
+        team.forEach((p, pIdx) => {
+          const pDiv = document.createElement('div');
+          pDiv.className = 'team-slot-player';
+          pDiv.innerHTML = `<span>${esc(p)}</span><button title="Remove from team">×</button>`;
+          pDiv.querySelector('button').addEventListener('click', () => {
+            state.manualTeams[tIdx].splice(pIdx, 1);
+            selectedPoolPlayer = null;
+            save(); render();
+          });
+          playersDiv.appendChild(pDiv);
+        });
       }
-      grid.appendChild(div);
+
+      slot.appendChild(titleRow);
+      slot.appendChild(playersDiv);
+
+      // Click slot to assign selected player
+      if (!isFull && selectedPoolPlayer && !assignedPlayers.has(selectedPoolPlayer)) {
+        const hint = document.createElement('div');
+        hint.style.cssText = 'margin-top:8px;font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline';
+        hint.textContent = `+ Add ${selectedPoolPlayer} here`;
+        hint.addEventListener('click', () => {
+          state.manualTeams[tIdx].push(selectedPoolPlayer);
+          selectedPoolPlayer = null;
+          save(); render();
+        });
+        slot.appendChild(hint);
+      }
+
+      grid.appendChild(slot);
     });
-    area.appendChild(grid);
+
+    builder.appendChild(grid);
+
+    // Player pool
+    pool.innerHTML = '';
+    const unassigned = state.players.filter(p => !assignedPlayers.has(p));
+    state.players.forEach(p => {
+      const pill = document.createElement('span');
+      pill.className = 'pool-pill';
+      const isAssigned = assignedPlayers.has(p);
+      const isSelected = selectedPoolPlayer === p;
+      if (isAssigned) pill.classList.add('assigned');
+      if (isSelected) pill.classList.add('selected');
+      pill.textContent = p;
+      if (!isAssigned) {
+        pill.addEventListener('click', () => {
+          selectedPoolPlayer = selectedPoolPlayer === p ? null : p;
+          render();
+        });
+      }
+      pool.appendChild(pill);
+    });
+
+    // Assign row
+    if (selectedPoolPlayer && !assignedPlayers.has(selectedPoolPlayer)) {
+      assignRow.style.display = 'flex';
+      document.getElementById('assignPlayerName').textContent = selectedPoolPlayer;
+      const btns = document.getElementById('assignBtns');
+      btns.innerHTML = '';
+      state.manualTeams.forEach((team, tIdx) => {
+        if (team.length < maxPPT) {
+          const btn = document.createElement('button');
+          btn.className = 'secondary assign-btn';
+          btn.textContent = `Team ${tIdx + 1}`;
+          btn.addEventListener('click', () => {
+            state.manualTeams[tIdx].push(selectedPoolPlayer);
+            selectedPoolPlayer = null;
+            save(); render();
+          });
+          btns.appendChild(btn);
+        }
+      });
+    } else {
+      assignRow.style.display = 'none';
+    }
+
+    // Enable start button when at least 2 teams have players
+    const validTeams = state.manualTeams.filter(t => t.length > 0);
+    document.getElementById('startManualBtn').disabled = validTeams.length < 2;
+  }
+
+  function teamLabel(team) {
+    if (!team || team.length === 0) return '?';
+    if (team.length === 1) return esc(team[0]);
+    return `${esc(team[0])} &amp; ${esc(team[1])}`;
   }
 
   function phaseLabel(round) {
@@ -801,43 +883,63 @@
     if (round.phase === 'final') return 'Final';
     if (round.phase === 'five_team_q1_elim') return 'Q1 & Eliminator';
     if (round.phase === 'five_team_q2') return 'Q2';
-    if (round.phase === 'knockout') {
-      const matchCount = round.matches.length;
-      if (matchCount === 4) return 'Quarterfinal';
-      return 'Knockout Round';
-    }
+    if (round.phase === 'knockout') return round.matches.length === 4 ? 'Quarterfinal' : 'Knockout Round';
     return `Round ${round.number}`;
+  }
+
+  function renderTeams() {
+    const area = document.getElementById('teamsArea');
+    area.innerHTML = '';
+    const last = state.rounds[state.rounds.length - 1];
+    if (!last) return;
+    if (['semi','final','knockout','five_team_q1_elim','five_team_q2'].includes(last.phase)) {
+      const h = document.createElement('h3');
+      h.textContent = phaseLabel(last);
+      area.appendChild(h);
+      area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Teams shown in the matches below.' }));
+      return;
+    }
+    const h = document.createElement('h3');
+    h.textContent = `${phaseLabel(last)} — ${last.teams.length} team${last.teams.length !== 1 ? 's' : ''}`;
+    area.appendChild(h);
+    const grid = document.createElement('div');
+    grid.className = 'teams';
+    last.teams.forEach((team, idx) => {
+      const div = document.createElement('div');
+      div.className = 'team';
+      const label = team.length === 1
+        ? `<div class="bye">${esc(team[0])}</div>`
+        : `<div>${esc(team[0])} &amp; ${esc(team[1])}</div>`;
+      div.innerHTML = `<div class="team-title">Team ${idx + 1}</div>${label}`;
+      grid.appendChild(div);
+    });
+    area.appendChild(grid);
   }
 
   function renderMatches() {
     const area = document.getElementById('matchesArea');
     area.innerHTML = '';
     if (state.rounds.length === 0) { area.innerHTML = '<div class="empty">No matches yet.</div>'; return; }
-    // Find the final round (if any) so we can show a congrats banner after it finishes
     const finalRound = [...state.rounds].reverse().find(r => r.phase === 'final');
     state.rounds.forEach((round, rIdx) => {
       const heading = document.createElement('h3');
       heading.textContent = phaseLabel(round);
       area.appendChild(heading);
-      if (round.matches.length === 0) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; area.appendChild(e); return; }
-      // Show 5-team bracket structure note
+      if (round.matches.length === 0) {
+        area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'No matches.' }));
+        return;
+      }
       if (round.phase === 'five_team_q1_elim') {
         const note = document.createElement('div');
         note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;line-height:1.6';
-        note.innerHTML = '🏆 <b>5-Team Playoff:</b><br>Q1 Winner → <b>Final</b> directly &nbsp;·&nbsp; Q1 Loser → Q2<br>Eliminator Winner → Q2 &nbsp;·&nbsp; Eliminator Loser & #5 eliminated';
+        note.innerHTML = '🏆 <b>5-Team Playoff:</b> Q1 Winner → Final · Q1 Loser → Q2 · Eliminator Winner → Q2 · Eliminator Loser & #5 eliminated';
         area.appendChild(note);
       }
-      if (round.phase === 'five_team_q2') {
-        const note = document.createElement('div');
-        note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;';
-        note.innerHTML = '🏆 Q2 Winner advances to the <b>Final</b> to face the Q1 winner &nbsp;·&nbsp; Q2 Loser eliminated';
-        area.appendChild(note);
-      }
-      if (round === finalRound && round.matches[0].winner) {
+      if (round === finalRound && round.matches[0]?.winner) {
         const winnerTeam = round.matches[0][round.matches[0].winner];
         const banner = document.createElement('div');
         banner.className = 'winner-banner';
-        banner.innerHTML = `🏆 Congratulations to <b>${esc(winnerTeam[0])} &amp; ${esc(winnerTeam[1])}</b> — tournament champions!`;
+        banner.innerHTML = `🏆 Congratulations to <b>${teamLabel(winnerTeam)}</b> — tournament champions!`;
         area.appendChild(banner);
       }
       round.matches.forEach(match => {
@@ -849,12 +951,12 @@
           return;
         }
         const matchLabel = match.label || 'Match';
-        let statusHtml = '';
-        let statusClass = '';
-        if (match.winner) { statusClass = 'done'; statusHtml = `<span class="match-status done">Finished</span>`; }
-        else { statusClass = 'live'; statusHtml = `<span class="match-status live">In progress</span>`; }
-        const aLabel = `${esc(match.a[0])} &amp; ${esc(match.a[1])}`;
-        const bLabel = `${esc(match.b[0])} &amp; ${esc(match.b[1])}`;
+        const statusHtml = match.winner
+          ? `<span class="match-status done">Finished</span>`
+          : `<span class="match-status live">In progress</span>`;
+
+        const aLabel = teamLabel(match.a);
+        const bLabel = teamLabel(match.b);
         const aWins = match.games.filter(g => g.winner === 'a').length;
         const bWins = match.games.filter(g => g.winner === 'b').length;
         const current = match.games[match.games.length - 1];
@@ -865,12 +967,13 @@
         }).join('');
         let switchNote = '';
         if (match.games.length === 3 && !current.finished) {
-          const high = Math.max(current.a, current.b);
-          if (high === SIDE_SWITCH) switchNote = `<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:4px">⇄ Side switch at 11</div>`;
+          if (Math.max(current.a, current.b) === SIDE_SWITCH)
+            switchNote = `<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:4px">⇄ Side switch at 11</div>`;
         }
         const aSideStyle = match.winner === 'a' ? 'color:var(--accent);font-weight:700' : '';
         const bSideStyle = match.winner === 'b' ? 'color:var(--accent);font-weight:700' : '';
         const showGamesInfo = GAMES_TO_WIN > 1;
+
         div.innerHTML = `
           <div class="match-header"><span class="label">${matchLabel}</span>${statusHtml}</div>
           <div class="sides">
@@ -897,37 +1000,27 @@
           ${showGamesInfo ? `<div class="games">${gamesHtml}</div>` : ''}
           ${switchNote}
         `;
-        // attach button listeners
+
         div.querySelectorAll('button[data-side]').forEach(btn => {
           btn.addEventListener('click', () => {
             const side = btn.dataset.side;
             const act = btn.dataset.act;
-            if (act === 'plus') scorePoint(rIdx, match.id, side);
-            else {
-              // manual decrement
+            if (act === 'plus') {
+              scorePoint(rIdx, match.id, side);
+            } else {
               pushHistory();
               const cur = match.games[match.games.length - 1];
               if (cur.finished) {
-                if (cur.winner) {
-                  if (cur.winner === 'a') match.winner = null;
-                }
-                cur.finished = false;
-                cur.winner = null;
-                match.winner = null;
-                if (side === 'a' && cur.a > 0) cur.a--;
-                else if (side === 'b' && cur.b > 0) cur.b--;
-              } else {
-                if (side === 'a' && cur.a > 0) cur.a--;
-                else if (side === 'b' && cur.b > 0) cur.b--;
+                cur.finished = false; cur.winner = null; match.winner = null;
               }
-              // prune empty third game if needed
+              if (side === 'a' && cur.a > 0) cur.a--;
+              else if (side === 'b' && cur.b > 0) cur.b--;
               if (match.games.length > 1) {
                 const lastG = match.games[match.games.length - 1];
                 const prevG = match.games[match.games.length - 2];
                 if (!lastG.finished && lastG.a === 0 && lastG.b === 0 && prevG.finished) match.games.pop();
               }
-              save();
-              render();
+              save(); render();
             }
           });
         });
@@ -940,32 +1033,20 @@
     const area = document.getElementById('standingsArea');
     area.innerHTML = '';
     if (state.players.length === 0) { area.innerHTML = '<div class="empty">Standings will appear once players are added.</div>'; return; }
-    if ((state.tournamentTeams || []).length === 0) {
-      area.innerHTML = '<div class="empty">Standings will appear once the tournament starts.</div>';
-      return;
-    }
+    if ((state.tournamentTeams || []).length === 0) { area.innerHTML = '<div class="empty">Standings will appear once the tournament starts.</div>'; return; }
     const standings = computeTeamStandings();
     const table = document.createElement('table');
     table.className = 'standings';
-    table.innerHTML = `
-      <thead><tr>
-        <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>Diff</th>
-      </tr></thead>
-      <tbody></tbody>
-    `;
+    table.innerHTML = `<thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>Diff</th></tr></thead><tbody></tbody>`;
     const tbody = table.querySelector('tbody');
     standings.forEach((s, i) => {
       const tr = document.createElement('tr');
       if (i === 0 && s.wins > 0) tr.classList.add('winner');
-      const teamLabel = s.team.length === 1
-        ? `${esc(s.team[0])} <span class="bye">(bye)</span>`
-        : `${esc(s.team[0])} &amp; ${esc(s.team[1])}`;
-      const played = s.played != null ? s.played : (s.wins + s.losses);
       const diff = s.pointsFor - s.pointsAgainst;
       tr.innerHTML = `
         <td>${i+1}</td>
-        <td>${teamLabel}</td>
-        <td>${played}</td>
+        <td>${teamLabel(s.team)}</td>
+        <td>${s.wins + s.losses}</td>
         <td>${s.wins}</td>
         <td>${s.losses}</td>
         <td>${s.pointsFor}</td>
@@ -980,47 +1061,31 @@
   // initial render
   render();
 
-  // ---- PWA: install button + service worker ----
+  // ─────────────────────────────────────────────
+  // PWA
+  // ─────────────────────────────────────────────
   let deferredPrompt = null;
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
   const installBtn = document.getElementById('installBtn');
+
   function refreshInstallBtn() {
     if (!installBtn) return;
-    if (isStandalone) { installBtn.style.display = 'none'; return; }
-    installBtn.style.display = '';
+    installBtn.style.display = isStandalone ? 'none' : '';
   }
-  if (installBtn) {
-    installBtn.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        try { await deferredPrompt.userChoice; } catch (e) {}
-        deferredPrompt = null;
-        return;
-      }
-      // No native install prompt available — show manual instructions
-      if (isIOS) {
-        showError('Tap the Share button, then "Add to Home Screen"');
-      } else {
-        showError('Use the browser menu → "Add to Home screen" or "Install app"');
-      }
-    });
-    refreshInstallBtn();
-  }
-
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredPrompt = e;
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      try { await deferredPrompt.userChoice; } catch (e) {}
+      deferredPrompt = null;
+      return;
+    }
+    showError(isIOS ? 'Tap the Share button, then "Add to Home Screen"' : 'Use the browser menu → "Add to Home screen" or "Install app"');
   });
-
-  window.addEventListener('appinstalled', () => {
-    refreshInstallBtn();
-  });
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  refreshInstallBtn();
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
+  window.addEventListener('appinstalled', refreshInstallBtn);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 </body>
