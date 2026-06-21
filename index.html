@@ -366,6 +366,8 @@
       return teamByKey.get(team.slice().sort().join('|'));
     }
     for (const round of state.rounds) {
+      // Only count group-stage rounds for standings (not knockout phases)
+      if (round.phase && round.phase !== 'group') continue;
       for (const m of round.matches) {
         if (m.bye) continue;
         for (const g of m.games) {
@@ -431,36 +433,36 @@
   function advanceKnockout() {
     const lastRound = state.rounds[state.rounds.length - 1];
 
-    // ── 5-team bracket: QF round finished → create Semifinal ──
-    if (lastRound.phase === 'five_team_qf') {
-      const qf1 = lastRound.matches[0]; // #1 vs #2
-      const qf2 = lastRound.matches[1]; // #3 vs #4
-      const qf1Winner = qf1[qf1.winner];
-      const qf1Loser  = qf1[qf1.winner === 'a' ? 'b' : 'a'];
-      const qf2Winner = qf2[qf2.winner];
-      // Store for later use in the final
-      state.fiveTeamQF = { qf1Winner, qf1Loser, qf2Winner };
-      // Semi: loser of QF1 vs winner of QF2
+    // ── 5-team IPL bracket: Q1 + Eliminator round finished → create Q2 ──
+    if (lastRound.phase === 'five_team_q1_elim') {
+      const q1      = lastRound.matches[0]; // Q1: #1 vs #2
+      const elim    = lastRound.matches[1]; // Eliminator: #3 vs #4
+      const q1Winner   = q1[q1.winner];
+      const q1Loser    = q1[q1.winner === 'a' ? 'b' : 'a'];
+      const elimWinner = elim[elim.winner];
+      // Store Q1 winner for Final
+      state.fiveTeamQF = { q1Winner };
+      // Q2: Loser of Q1 vs Winner of Eliminator
       state.rounds.push({
-        number: state.rounds.length + 1, teams: [], phase: 'five_team_semi',
+        number: state.rounds.length + 1, teams: [], phase: 'five_team_q2',
         matches: [{
-          id: uid(), a: qf1Loser, b: qf2Winner,
+          id: uid(), a: q1Loser, b: elimWinner,
           games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'Semifinal',
+          label: 'Q2',
         }],
       });
       save(); render(); return;
     }
 
-    // ── 5-team bracket: Semi finished → create Final ──
-    if (lastRound.phase === 'five_team_semi') {
-      const semi = lastRound.matches[0];
-      const semiWinner = semi[semi.winner];
-      const qf1Winner  = state.fiveTeamQF.qf1Winner;
+    // ── 5-team IPL bracket: Q2 finished → create Final ──
+    if (lastRound.phase === 'five_team_q2') {
+      const q2 = lastRound.matches[0];
+      const q2Winner = q2[q2.winner];
+      const q1Winner = state.fiveTeamQF.q1Winner;
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'final',
         matches: [{
-          id: uid(), a: qf1Winner, b: semiWinner,
+          id: uid(), a: q1Winner, b: q2Winner,
           games: [{ a: 0, b: 0, finished: false }], winner: null,
         }],
       });
@@ -495,7 +497,6 @@
           winner: null,
         });
       }
-      // Determine phase label
       const remaining = allTeams.length;
       const phase = remaining === 4 ? 'semi' : 'knockout';
       state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
@@ -520,7 +521,7 @@
 
     // If we're already in a knockout/semi/5-team phase → advance to next knockout round
     if (currentRound.phase === 'knockout' || currentRound.phase === 'semi' ||
-        currentRound.phase === 'five_team_qf' || currentRound.phase === 'five_team_semi') {
+        currentRound.phase === 'five_team_q1_elim' || currentRound.phase === 'five_team_q2') {
       advanceKnockout();
       return;
     }
@@ -557,25 +558,25 @@
       save(); render(); return;
     }
 
-    // ── 5-team special bracket ──
+    // ── 5-team IPL bracket ──
     if (teamCount === 5) {
-      // QF1: #1 vs #2  (winner → Final, loser → Semi)
-      // QF2: #3 vs #4  (winner → Semi, #5 is eliminated)
+      // Q1: #1 vs #2  → Winner → Final directly | Loser → Q2
+      // Eliminator: #3 vs #4 → Winner → Q2 | Loser eliminated (#5 already out)
       state.fiveTeamQF = null;
       state.knockoutByeTeams = [];
       const matches = [
         {
           id: uid(), a: teamStats[0].team, b: teamStats[1].team,
           games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'QF1: #1 vs #2',
+          label: 'Q1 (#1 vs #2)',
         },
         {
           id: uid(), a: teamStats[2].team, b: teamStats[3].team,
           games: [{ a: 0, b: 0, finished: false }], winner: null,
-          label: 'QF2: #3 vs #4',
+          label: 'Eliminator (#3 vs #4)',
         },
       ];
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase: 'five_team_qf' });
+      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase: 'five_team_q1_elim' });
       save(); render(); return;
     }
 
@@ -772,7 +773,7 @@
     if (!last) { area.innerHTML = '<div class="empty">No round yet. Click <b>Shuffle Teams</b> to start.</div>'; return; }
     const heading = document.createElement('h3');
     if (last.phase === 'semi' || last.phase === 'final' || last.phase === 'knockout' ||
-        last.phase === 'five_team_qf' || last.phase === 'five_team_semi') {
+        last.phase === 'five_team_q1_elim' || last.phase === 'five_team_q2') {
       heading.textContent = phaseLabel(last);
       area.appendChild(heading);
       area.appendChild(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Teams are shown in the match below.' }));
@@ -798,8 +799,8 @@
   function phaseLabel(round) {
     if (round.phase === 'semi') return 'Semifinal';
     if (round.phase === 'final') return 'Final';
-    if (round.phase === 'five_team_qf') return 'Quarterfinals';
-    if (round.phase === 'five_team_semi') return 'Semifinal';
+    if (round.phase === 'five_team_q1_elim') return 'Q1 & Eliminator';
+    if (round.phase === 'five_team_q2') return 'Q2';
     if (round.phase === 'knockout') {
       const matchCount = round.matches.length;
       if (matchCount === 4) return 'Quarterfinal';
@@ -820,16 +821,16 @@
       area.appendChild(heading);
       if (round.matches.length === 0) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No matches.'; area.appendChild(e); return; }
       // Show 5-team bracket structure note
-      if (round.phase === 'five_team_qf') {
+      if (round.phase === 'five_team_q1_elim') {
         const note = document.createElement('div');
-        note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;';
-        note.innerHTML = '🏆 <b>5-Team Bracket:</b> Winner of QF1 → Final &nbsp;·&nbsp; Loser of QF1 vs Winner of QF2 → Semifinal &nbsp;·&nbsp; #5 seed eliminated';
+        note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;line-height:1.6';
+        note.innerHTML = '🏆 <b>5-Team Playoff:</b><br>Q1 Winner → <b>Final</b> directly &nbsp;·&nbsp; Q1 Loser → Q2<br>Eliminator Winner → Q2 &nbsp;·&nbsp; Eliminator Loser & #5 eliminated';
         area.appendChild(note);
       }
-      if (round.phase === 'five_team_semi') {
+      if (round.phase === 'five_team_q2') {
         const note = document.createElement('div');
         note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;';
-        note.innerHTML = '🏆 Winner advances to the <b>Final</b> to face the QF1 winner';
+        note.innerHTML = '🏆 Q2 Winner advances to the <b>Final</b> to face the Q1 winner &nbsp;·&nbsp; Q2 Loser eliminated';
         area.appendChild(note);
       }
       if (round === finalRound && round.matches[0].winner) {
