@@ -133,6 +133,11 @@
   .header-row h1 { margin: 0 0 6px; }
   .header-row .subtitle { margin: 0; }
   .header-row .install-btn { white-space: nowrap; margin-top: 6px; }
+  .points-setting-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .points-setting-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .points-setting-row input[type=number] { width: 64px; background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 6px 10px; border-radius: 8px; font-size: 14px; }
+  .points-setting-row input[type=number]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .points-hint { font-size: 12px; color: var(--muted); font-style: italic; }
 </style>
 </head>
 <body>
@@ -154,6 +159,11 @@
     </div>
     <div class="player-list" id="playerList"></div>
     <div class="empty" id="playerEmpty">No players added yet. Add at least 2 players to start.</div>
+    <div class="points-setting-row">
+      <label for="pointsInput">Points to win a game:</label>
+      <input type="number" id="pointsInput" min="5" max="100" value="21" />
+      <span class="points-hint" id="pointsHint">First to 21 (deuce at 20, cap 30)</span>
+    </div>
   </div>
 
   <div class="panel">
@@ -235,8 +245,10 @@
 
   const STORAGE_KEY = 'badminton-tournament-v3';
   const GAMES_TO_WIN = 1;
-  const POINTS_PER_GAME = 21;
   const SIDE_SWITCH = 11;
+
+  // pointsPerGame is stored in state so it persists; this getter reads it at call time
+  function getPointsPerGame() { return state.pointsPerGame || 21; }
 
   const defaultState = () => ({
     players: [],
@@ -246,10 +258,11 @@
     finalTopTeam: null,
     knockoutByeTeams: [],
     fiveTeamQF: null,
-    teamMode: 'doubles',  // 'singles' | 'doubles' | 'mixed'
-    setupMode: 'auto',    // 'auto' | 'manual'
-    manualTeams: [],      // draft teams during manual setup
+    teamMode: 'doubles',
+    setupMode: 'auto',
+    manualTeams: [],
     teamCount: 4,
+    pointsPerGame: 21,
   });
 
   let state = load();
@@ -312,9 +325,35 @@
   function clearPlayers() {
     if (state.players.length === 0 && state.rounds.length === 0) return;
     if (!confirm('Clear all players and tournament data?')) return;
+    const pts = state.pointsPerGame; // preserve points setting across reset
     state = defaultState();
+    state.pointsPerGame = pts;
     save();
     render();
+  }
+
+  // Points-per-game input
+  const pointsInput = document.getElementById('pointsInput');
+  pointsInput.value = state.pointsPerGame || 21;
+  pointsInput.addEventListener('change', () => {
+    const v = parseInt(pointsInput.value, 10);
+    if (!isNaN(v) && v >= 5 && v <= 100) {
+      state.pointsPerGame = v;
+      save();
+      updatePointsHint();
+    } else {
+      pointsInput.value = state.pointsPerGame || 21;
+    }
+  });
+
+  function updatePointsHint() {
+    const pts = getPointsPerGame();
+    const cap = pts + 9; // e.g. 21 → cap 30, 15 → cap 24
+    const deuce = pts - 1;
+    document.getElementById('pointsHint').textContent =
+      `First to ${pts} (deuce at ${deuce}, cap ${cap})`;
+    document.getElementById('subtitleText').textContent =
+      `${state.teamMode === 'singles' ? 'Singles' : state.teamMode === 'mixed' ? 'Mixed' : 'Doubles'} round-robin · First to ${pts} pts`;
   }
 
   // ─────────────────────────────────────────────
@@ -617,8 +656,9 @@
     if (side === 'a') current.a++; else current.b++;
     const a = current.a, b = current.b;
     const high = Math.max(a, b);
-    if ((a >= POINTS_PER_GAME || b >= POINTS_PER_GAME) && high >= POINTS_PER_GAME) {
-      if (high >= 30 || Math.abs(a - b) >= 2) {
+    const PPG = getPointsPerGame();
+    if ((a >= PPG || b >= PPG) && high >= PPG) {
+      if (high >= PPG + 9 || Math.abs(a - b) >= 2) {
         current.finished = true;
         current.winner = a > b ? 'a' : 'b';
       }
@@ -694,9 +734,10 @@
     newRoundBtn.disabled = !lastRound || !allMatchesFinished(lastRound) || tournamentOver;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
 
-    // subtitle
-    const mode = state.teamMode === 'singles' ? 'Singles' : state.teamMode === 'mixed' ? 'Mixed' : 'Doubles';
-    document.getElementById('subtitleText').textContent = `${mode} round-robin · BWF scoring (single game to 21)`;
+    // Sync points input & hint
+    pointsInput.value = state.pointsPerGame || 21;
+    pointsInput.disabled = state.rounds.length > 0; // lock once tournament started
+    updatePointsHint();
   }
 
   function renderPlayers() {
