@@ -433,17 +433,19 @@
     if (teams.length < 2) { showError('Need at least 2 teams to start'); return; }
     if (state.rounds.length > 0) { showError('Tournament already started'); return; }
     state.tournamentTeams = teams;
-    const scheduleRounds = buildSchedule(teams);
-    scheduleRounds.forEach((pairs, idx) => {
-      const matches = pairs.map(pair => ({
-        id: uid(),
-        a: teams[pair[0]],
-        b: teams[pair[1]],
-        games: [{ a: 0, b: 0, finished: false }],
-        winner: null,
-      }));
-      state.rounds.push({ number: idx + 1, teams, matches, phase: 'group' });
-    });
+
+    // Generate all round-robin pairs, flatten and gap-schedule into one Preliminary Round
+    const allPairs = buildRoundRobinPairs(teams.length);
+    const scheduled = gapSchedule(allPairs, teams.length);
+    const matches = scheduled.map(([i, j]) => ({
+      id: uid(),
+      a: teams[i],
+      b: teams[j],
+      games: [{ a: 0, b: 0, finished: false }],
+      winner: null,
+    }));
+
+    state.rounds.push({ number: 1, teams, matches, phase: 'group' });
     save();
     render();
   }
@@ -461,34 +463,60 @@
   });
 
   // ─────────────────────────────────────────────
-  // Round schedule
+  // Match scheduling
   // ─────────────────────────────────────────────
-  function buildSchedule(teams) {
-    const n = teams.length;
-    if (n < 2) return [];
-    if (n === 3) {
-      return [
-        [[0,1],[1,2],[2,0]],
-        [[1,0],[2,1],[0,2]],
-      ];
-    }
+
+  // Returns all unique [i, j] pairs for a full round-robin of n teams
+  function buildRoundRobinPairs(n) {
+    const pairs = [];
+    if (n < 2) return pairs;
+    if (n === 2) return [[0, 1]];
     const useN = n % 2 === 0 ? n : n + 1;
-    const rounds = [];
     const circle = [];
     for (let i = 1; i < useN; i++) circle.push(i);
     for (let r = 0; r < useN - 1; r++) {
-      const round = [];
       const opp = circle[circle.length - 1];
-      if (opp < n) round.push([0, opp]);
+      if (opp < n) pairs.push([0, opp]);
       for (let i = 0; i < Math.floor((useN - 2) / 2); i++) {
         const a = circle[i];
         const b = circle[useN - 2 - i];
-        if (a < n && b < n) round.push([a, b]);
+        if (a < n && b < n) pairs.push([a, b]);
       }
-      rounds.push(round);
       circle.unshift(circle.pop());
     }
-    return rounds;
+    return pairs;
+  }
+
+  // Reorder pairs so no team plays in consecutive match positions.
+  // Greedy: at each slot pick the first pair where neither team played the previous match.
+  // Falls back to least-recently-used pair if no ideal option exists.
+  function gapSchedule(pairs, n) {
+    const remaining = pairs.slice();
+    const scheduled = [];
+    const lastPlayed = new Array(n).fill(-2);
+
+    while (remaining.length > 0) {
+      const slot = scheduled.length;
+      let chosen = -1;
+      for (let k = 0; k < remaining.length; k++) {
+        const [i, j] = remaining[k];
+        if (lastPlayed[i] < slot - 1 && lastPlayed[j] < slot - 1) { chosen = k; break; }
+      }
+      if (chosen === -1) {
+        // No gap-safe pair: pick the one whose most-recent player is least recent
+        let bestScore = -Infinity;
+        for (let k = 0; k < remaining.length; k++) {
+          const [i, j] = remaining[k];
+          const score = -(Math.max(lastPlayed[i], lastPlayed[j]));
+          if (score > bestScore) { bestScore = score; chosen = k; }
+        }
+      }
+      const [i, j] = remaining.splice(chosen, 1)[0];
+      lastPlayed[i] = slot;
+      lastPlayed[j] = slot;
+      scheduled.push([i, j]);
+    }
+    return scheduled;
   }
 
   function allMatchesFinished(round) { return round.matches.every(m => m.winner); }
@@ -920,6 +948,7 @@
   }
 
   function phaseLabel(round) {
+    if (round.phase === 'group') return 'Preliminary Round';
     if (round.phase === 'semi') return 'Semifinal';
     if (round.phase === 'final') return 'Final';
     if (round.phase === 'five_team_q1_elim') return 'Q1 & Eliminator';
@@ -941,7 +970,9 @@
       return;
     }
     const h = document.createElement('h3');
-    h.textContent = `${phaseLabel(last)} — ${last.teams.length} team${last.teams.length !== 1 ? 's' : ''}`;
+    h.textContent = last.phase === 'group'
+      ? `Preliminary Round — ${last.teams.length} team${last.teams.length !== 1 ? 's' : ''} · ${last.matches.length} match${last.matches.length !== 1 ? 'es' : ''}`
+      : `${phaseLabel(last)} — ${last.teams.length} team${last.teams.length !== 1 ? 's' : ''}`;
     area.appendChild(h);
     const grid = document.createElement('div');
     grid.className = 'teams';
@@ -991,7 +1022,9 @@
           area.appendChild(div);
           return;
         }
-        const matchLabel = match.label || 'Match';
+        const matchLabel = match.label
+          ? match.label
+          : (round.phase === 'group' ? `Match ${round.matches.indexOf(match) + 1}` : 'Match');
         const statusHtml = match.winner
           ? `<span class="match-status done">Finished</span>`
           : `<span class="match-status live">In progress</span>`;
