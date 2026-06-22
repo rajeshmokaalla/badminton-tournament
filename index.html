@@ -193,6 +193,20 @@
   .status-badge.rejected { background: var(--warn); color: #fff; }
   .admin-sub-details { font-size: 13px; color: var(--muted); line-height: 1.9; }
   .admin-sub-details strong { color: var(--text); }
+  /* ── Tournament Diagram ── */
+  .diagram-flow { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding: 8px 0 16px; flex-wrap: nowrap; scrollbar-width: thin; }
+  .diagram-stage { display: flex; align-items: center; gap: 0; flex: 0 0 auto; }
+  .diagram-box { background: var(--panel-2); border-radius: 10px; padding: 13px 12px; min-width: 128px; max-width: 160px; border: 2px solid transparent; transition: border-color 0.2s; }
+  .diagram-box.active { border-color: var(--accent); }
+  .diagram-box.done { border-color: var(--accent-2); opacity: 0.65; }
+  .diagram-label { font-weight: 700; font-size: 12px; color: var(--text); margin-bottom: 3px; }
+  .diagram-sub { font-size: 11px; color: var(--accent); font-weight: 600; margin-bottom: 5px; }
+  .diagram-desc { font-size: 10px; color: var(--muted); line-height: 1.5; white-space: pre-line; }
+  .diagram-arrow { color: var(--muted); font-size: 18px; padding: 0 6px; margin-top: 16px; flex: 0 0 auto; line-height: 1; }
+  @media (max-width: 600px) {
+    .diagram-box { min-width: 108px; padding: 10px 9px; }
+    .diagram-arrow { font-size: 14px; padding: 0 3px; }
+  }
 </style>
 </head>
 <body>
@@ -275,6 +289,14 @@
     <div id="teamsArea"></div>
   </div>
 
+  <div class="panel" id="diagramPanel" style="display:none">
+    <div class="section-title-row" style="margin-bottom:10px">
+      <h2 style="margin:0">📋 Tournament Schedule</h2>
+      <span id="diagramTeamCount" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+    <div id="diagramArea"></div>
+  </div>
+
   <div class="panel">
     <h2>3. Matches</h2>
     <div id="matchesArea"></div>
@@ -286,6 +308,7 @@
       <div class="actions">
         <button class="secondary" id="undoBtn" disabled>↶ Undo Last Edit</button>
         <button class="secondary" id="exportBtn">Export</button>
+        <button class="secondary" id="playAgainBtn" style="display:none">🔄 Play Again (Same Teams)</button>
         <button class="danger" id="resetBtn">Reset Tournament</button>
       </div>
     </div>
@@ -475,6 +498,7 @@
     finalTopTeam: null,
     knockoutByeTeams: [],
     fiveTeamQF: null,
+    iplQF: null,
     teamMode: 'doubles',
     setupMode: 'auto',
     manualTeams: [],
@@ -801,6 +825,27 @@
 
   function advanceKnockout() {
     const lastRound = state.rounds[state.rounds.length - 1];
+    if (lastRound.phase === 'ipl_q1_elim') {
+      const q1 = lastRound.matches[0];
+      const elim = lastRound.matches[1];
+      const q1Winner = q1[q1.winner];
+      const q1Loser = q1[q1.winner === 'a' ? 'b' : 'a'];
+      const elimWinner = elim[elim.winner];
+      state.iplQF = { q1Winner };
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'ipl_q2',
+        matches: [{ id: uid(), a: q1Loser, b: elimWinner, games: [{a:0,b:0,finished:false}], winner: null, label: 'Q2' }],
+      });
+      save(); render(); return;
+    }
+    if (lastRound.phase === 'ipl_q2') {
+      const q2 = lastRound.matches[0];
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'final',
+        matches: [{ id: uid(), a: state.iplQF.q1Winner, b: q2[q2.winner], games: [{a:0,b:0,finished:false}], winner: null }],
+      });
+      save(); render(); return;
+    }
     if (lastRound.phase === 'five_team_q1_elim') {
       const q1 = lastRound.matches[0];
       const elim = lastRound.matches[1];
@@ -848,7 +893,7 @@
     const currentRound = state.rounds[state.rounds.length - 1];
     if (!allMatchesFinished(currentRound)) { showError('Finish all matches of the current phase first'); return; }
     if (currentRound.phase === 'final') { toast('Tournament completed'); return; }
-    if (['knockout','semi','five_team_q1_elim','five_team_q2'].includes(currentRound.phase)) {
+    if (['knockout','semi','five_team_q1_elim','five_team_q2','ipl_q1_elim','ipl_q2'].includes(currentRound.phase)) {
       advanceKnockout(); return;
     }
     const teamStats = computeTeamStandings();
@@ -881,31 +926,128 @@
       });
       save(); render(); return;
     }
-    const bracket = knockoutBracketSize(teamCount);
-    const byes = bracket - teamCount;
-    if (teamCount === bracket) {
-      const phase = teamCount === 4 ? 'semi' : 'knockout';
-      state.knockoutByeTeams = [];
-      const matches = [];
-      for (let i = 0; i < teamCount / 2; i++) {
-        matches.push({ id: uid(), a: teamStats[i].team, b: teamStats[teamCount-1-i].team, games: [{a:0,b:0,finished:false}], winner: null });
-      }
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
-      save(); render();
-    } else {
-      state.knockoutByeTeams = teamStats.slice(0, byes).map(s => s.team);
-      const playingTeams = teamStats.slice(byes);
-      const matches = [];
-      for (let i = 0; i < playingTeams.length / 2; i++) {
-        matches.push({ id: uid(), a: playingTeams[i].team, b: playingTeams[playingTeams.length-1-i].team, games: [{a:0,b:0,finished:false}], winner: null });
-      }
-      const phase = (byes + matches.length) === 2 ? 'semi' : 'knockout';
-      state.rounds.push({ number: state.rounds.length + 1, teams: [], matches, phase });
-      save(); render();
-    }
+    // 6+ teams: IPL playoff format (top 4 advance)
+    state.iplQF = null; state.knockoutByeTeams = [];
+    state.rounds.push({
+      number: state.rounds.length + 1, teams: [], phase: 'ipl_q1_elim',
+      matches: [
+        { id: uid(), a: teamStats[0].team, b: teamStats[1].team, games: [{a:0,b:0,finished:false}], winner: null, label: 'Q1 (#1 vs #2)' },
+        { id: uid(), a: teamStats[2].team, b: teamStats[3].team, games: [{a:0,b:0,finished:false}], winner: null, label: 'Eliminator (#3 vs #4)' },
+      ],
+    });
+    save(); render();
   }
 
   newRoundBtn.addEventListener('click', nextPhase);
+
+  // ─────────────────────────────────────────────
+  // Play Again (same teams, reset scores)
+  // ─────────────────────────────────────────────
+  function playAgain() {
+    const teams = state.tournamentTeams;
+    if (!teams || teams.length < 2) { showError('No teams to replay with'); return; }
+    if (!confirm(`Start a new tournament with the same ${teams.length} teams? All scores will be reset.`)) return;
+    state.rounds = [];
+    state.history = [];
+    state.fiveTeamQF = null;
+    state.iplQF = null;
+    state.knockoutByeTeams = [];
+    startGroupStage(teams);
+  }
+
+  document.getElementById('playAgainBtn').addEventListener('click', playAgain);
+
+  // ─────────────────────────────────────────────
+  // Tournament Schedule Diagram
+  // ─────────────────────────────────────────────
+  function buildDiagramSpec(n) {
+    const prelim = { label: 'Preliminary Round', sub: `${n} teams · ${n*(n-1)/2} match${n*(n-1)/2!==1?'es':''}`, desc: 'Full round-robin\nEvery team plays all others' };
+    if (n === 2) return [
+      { label: 'Final', sub: '1 match', desc: '#1 vs #2' },
+    ];
+    if (n === 3) return [
+      prelim,
+      { label: 'Semifinal', sub: '1 match', desc: '#2 vs #3\n#1 gets a bye' },
+      { label: 'Final', sub: '1 match', desc: 'Semi winner vs #1' },
+    ];
+    if (n === 4) return [
+      prelim,
+      { label: 'Semifinal', sub: '2 matches', desc: '#1 vs #4\n#2 vs #3' },
+      { label: 'Final', sub: '1 match', desc: 'Both semi winners' },
+    ];
+    if (n === 5) return [
+      prelim,
+      { label: 'Q1 + Eliminator', sub: '2 matches', desc: 'Q1: #1 vs #2\nElim: #3 vs #4\n#5 out' },
+      { label: 'Q2', sub: '1 match', desc: 'Q1 loser\nvs Elim winner' },
+      { label: 'Final', sub: '1 match', desc: 'Q1 winner\nvs Q2 winner' },
+    ];
+    // 6+ teams: IPL format
+    return [
+      { label: 'Preliminary Round', sub: `${n} teams · ${n*(n-1)/2} matches`, desc: 'Full round-robin\nTop 4 advance to playoffs' },
+      { label: 'Q1 + Eliminator', sub: '2 matches', desc: `Q1: #1 vs #2\nElim: #3 vs #4\n#5–#${n} eliminated` },
+      { label: 'Q2', sub: '1 match', desc: 'Q1 loser\nvs Elim winner' },
+      { label: 'Final', sub: '1 match', desc: 'Q1 winner\nvs Q2 winner' },
+    ];
+  }
+
+  function diagramActiveStage(rounds, n) {
+    const last = rounds[rounds.length - 1];
+    if (!last) return 0;
+    // Map phase → stage index within the diagram for this team count
+    if (last.phase === 'group') return 0;
+    if (last.phase === 'final') {
+      if (n === 2) return 0;
+      if (n <= 4) return 2;
+      return 3; // 5+ teams have 4 stages
+    }
+    if (last.phase === 'semi' || last.phase === 'knockout') return 1;
+    if (last.phase === 'five_team_q1_elim' || last.phase === 'ipl_q1_elim') return 1;
+    if (last.phase === 'five_team_q2' || last.phase === 'ipl_q2') return 2;
+    return 0;
+  }
+
+  function renderDiagram() {
+    const panel = document.getElementById('diagramPanel');
+    const area = document.getElementById('diagramArea');
+    if (!panel || !area) return;
+    const n = state.tournamentTeams?.length || 0;
+    if (n < 2) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    document.getElementById('diagramTeamCount').textContent = `${n} team${n!==1?'s':''}`;
+
+    const stages = buildDiagramSpec(n);
+    const activeIdx = diagramActiveStage(state.rounds, n);
+
+    area.innerHTML = '';
+    const flow = document.createElement('div');
+    flow.className = 'diagram-flow';
+
+    stages.forEach((stage, i) => {
+      const stageWrap = document.createElement('div');
+      stageWrap.className = 'diagram-stage';
+
+      const box = document.createElement('div');
+      box.className = 'diagram-box';
+      const effectiveActive = n === 2 ? 0 : activeIdx;
+      if (i === effectiveActive) box.classList.add('active');
+      else if (i < effectiveActive) box.classList.add('done');
+      box.innerHTML =
+        `<div class="diagram-label">${stage.label}</div>` +
+        `<div class="diagram-sub">${stage.sub}</div>` +
+        `<div class="diagram-desc">${stage.desc}</div>`;
+
+      stageWrap.appendChild(box);
+      if (i < stages.length - 1) {
+        const arrow = document.createElement('div');
+        arrow.className = 'diagram-arrow';
+        arrow.textContent = '→';
+        stageWrap.appendChild(arrow);
+      }
+      flow.appendChild(stageWrap);
+    });
+
+    area.appendChild(flow);
+  }
 
   // Reshuffle: re-runs gap scheduling on the existing group round's matches
   document.getElementById('reshuffleBtn').addEventListener('click', () => {
@@ -1043,6 +1185,7 @@
     renderPlayers();
     renderSetupArea();
     renderTeams();
+    renderDiagram();
     renderMatches();
     renderStandings();
 
@@ -1053,6 +1196,7 @@
     shuffleBtn.textContent = state.setupMode === 'auto' ? '🎲 Auto-assign & Start' : '🎲 Random';
     newRoundBtn.disabled = !lastRound || !allMatchesFinished(lastRound) || tournamentOver;
     document.getElementById('undoBtn').disabled = state.history.length === 0;
+    document.getElementById('playAgainBtn').style.display = tournamentOver && state.tournamentTeams?.length >= 2 ? '' : 'none';
     const groupRound = state.rounds.find(r => r.phase === 'group');
     document.getElementById('reshuffleBtn').disabled = !groupRound || groupRound.matches.every(m => m.winner);
 
@@ -1249,6 +1393,8 @@
     if (round.phase === 'final') return 'Final';
     if (round.phase === 'five_team_q1_elim') return 'Q1 & Eliminator';
     if (round.phase === 'five_team_q2') return 'Q2';
+    if (round.phase === 'ipl_q1_elim') return 'Q1 & Eliminator';
+    if (round.phase === 'ipl_q2') return 'Q2';
     if (round.phase === 'knockout') return round.matches.length === 4 ? 'Quarterfinal' : 'Knockout Round';
     return `Round ${round.number}`;
   }
@@ -1258,7 +1404,7 @@
     area.innerHTML = '';
     const last = state.rounds[state.rounds.length - 1];
     if (!last) return;
-    if (['semi','final','knockout','five_team_q1_elim','five_team_q2'].includes(last.phase)) {
+    if (['semi','final','knockout','five_team_q1_elim','five_team_q2','ipl_q1_elim','ipl_q2'].includes(last.phase)) {
       const h = document.createElement('h3');
       h.textContent = phaseLabel(last);
       area.appendChild(h);
@@ -1312,7 +1458,14 @@
       if (round.phase === 'five_team_q1_elim') {
         const note = document.createElement('div');
         note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;line-height:1.6';
-        note.innerHTML = '🏆 <b>5-Team Playoff:</b> Q1 Winner → Final · Q1 Loser → Q2 · Eliminator Winner → Q2 · Eliminator Loser & #5 eliminated';
+        note.innerHTML = '🏆 <b>IPL Playoffs:</b> Q1 Winner → Final · Q1 Loser → Q2 · Eliminator Winner → Q2 · Eliminator Loser & #5 eliminated';
+        area.appendChild(note);
+      }
+      if (round.phase === 'ipl_q1_elim') {
+        const n = state.tournamentTeams?.length || 6;
+        const note = document.createElement('div');
+        note.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel-2);border-radius:8px;line-height:1.6';
+        note.innerHTML = `🏆 <b>IPL Playoffs (${n} teams):</b> Q1 Winner → Final · Q1 Loser → Q2 · Eliminator Winner → Q2 · Eliminator Loser${n > 5 ? ` & #5–#${n} eliminated` : ' eliminated'}`;
         area.appendChild(note);
       }
       if (round === finalRound && round.matches[0]?.winner) {
