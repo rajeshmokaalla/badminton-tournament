@@ -522,6 +522,10 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     <div class="cb-section" id="cbSplitSection" style="display:none">
       <div class="cb-section-title">💰 Split Summary <span id="cbSplitMonthLabel" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
       <div id="cbSplitArea"></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #334155">
+        <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Once all members have settled their payments, click below to mark as settled and clear all booking data.</p>
+        <button id="cbSettleBtn" style="background:#16a34a;border-color:#16a34a">✅ Mark as Settled &amp; Reset</button>
+      </div>
     </div>
   </div>
 
@@ -3067,6 +3071,39 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
         row.innerHTML = `<span class="s-from">${esc(s.from)}</span> <span style="color:var(--muted)">pays</span> <span class="s-to">${esc(s.to)}</span> <span style="color:var(--muted)">→</span> <span class="s-amt">${cbFmt(s.amount)}</span>`;
         splitArea.appendChild(row);
       });
+    }
+  }
+
+  // ── Settle & Reset ──
+  document.getElementById('cbSettleBtn').addEventListener('click', cbSettleAndReset);
+
+  async function cbSettleAndReset() {
+    if (!sbSession) return;
+    const split = computeCBSplit();
+    let confirmMsg = 'Mark all payments as settled and delete all booking data?\n\nThis will permanently remove all court bookings and expenses. Group members will be kept.\n';
+    if (split && split.settlements.length) {
+      confirmMsg += '\nPending transfers to complete before settling:\n';
+      split.settlements.forEach(s => { confirmMsg += `  • ${s.from} → ${s.to}: ${cbFmt(s.amount)}\n`; });
+    }
+    confirmMsg += '\nThis cannot be undone.';
+    if (!confirm(confirmMsg)) return;
+
+    const btn = document.getElementById('cbSettleBtn');
+    btn.disabled = true;
+    btn.textContent = 'Settling…';
+    try {
+      // Delete all court_bookings for this user
+      await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}`, { method: 'DELETE', prefer: 'return=minimal' });
+      cbBookings = [];
+      cbEditingId = null;
+      renderCB();
+      document.getElementById('cbMonthLoadStatus').textContent = '';
+      toast('✅ Settled! All booking data has been cleared.');
+    } catch (e) {
+      toast('Error during settlement: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ Mark as Settled & Reset';
     }
   }
 
