@@ -295,7 +295,10 @@
   <div class="panel" id="statsPanel">
     <h2>📊 Player Stats</h2>
     <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Lifetime stats across all saved tournaments.</p>
-    <button id="loadStatsBtn">Load Stats</button>
+    <div class="row" style="gap:8px">
+      <button id="loadStatsBtn">Load Stats</button>
+      <button class="secondary" id="clearStatsBtn" style="display:none">✕ Clear</button>
+    </div>
     <div id="statsArea" style="margin-top:16px"></div>
   </div>
 
@@ -1491,6 +1494,7 @@
   document.getElementById('loadStatsBtn').addEventListener('click', async () => {
     const area = document.getElementById('statsArea');
     const btn = document.getElementById('loadStatsBtn');
+    const clearBtn = document.getElementById('clearStatsBtn');
     btn.disabled = true;
     area.innerHTML = '<div class="empty">Loading…</div>';
     try {
@@ -1501,11 +1505,17 @@
       }
       const { stats, matchCount } = aggregatePlayerStats(rows);
       renderPlayerStats(stats, matchCount, rows.length, area);
+      clearBtn.style.display = '';
     } catch (e) {
       area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
     } finally {
       btn.disabled = false;
     }
+  });
+
+  document.getElementById('clearStatsBtn').addEventListener('click', () => {
+    document.getElementById('statsArea').innerHTML = '';
+    document.getElementById('clearStatsBtn').style.display = 'none';
   });
 
   function aggregatePlayerStats(rows) {
