@@ -423,7 +423,26 @@
     <div class="section-title-row" style="margin-bottom:10px">
       <h3 style="margin:0;font-size:16px">🏸 Manage Saved Tournaments</h3>
     </div>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Delete any saved tournament by date and tournament number.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Delete any saved tournament by date and tournament number.</p>
+    <details style="margin-bottom:14px">
+      <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none">⚙️ Supabase RLS setup required to see &amp; delete all users' data</summary>
+      <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:8px;font-size:11px;color:#94a3b8;font-family:monospace;white-space:pre-wrap;overflow-x:auto">-- Run this once in Supabase SQL Editor (Database → SQL Editor)
+-- Allows admin to SELECT all tournaments
+DROP POLICY IF EXISTS "Admin select tournaments" ON tournaments;
+CREATE POLICY "Admin select tournaments" ON tournaments
+  FOR SELECT TO authenticated USING (
+    user_id = auth.uid()
+    OR (auth.jwt() -&gt;&gt; 'email') = 'rajesh.mokaalla@gmail.com'
+  );
+
+-- Allows admin to DELETE any tournament
+DROP POLICY IF EXISTS "Admin delete tournaments" ON tournaments;
+CREATE POLICY "Admin delete tournaments" ON tournaments
+  FOR DELETE TO authenticated USING (
+    user_id = auth.uid()
+    OR (auth.jwt() -&gt;&gt; 'email') = 'rajesh.mokaalla@gmail.com'
+  );</div>
+    </details>
     <div id="adminTourneyList"><div class="empty">Loading…</div></div>
   </div>
 
@@ -2432,18 +2451,39 @@
     const listEl = document.getElementById('adminTourneyList');
     listEl.innerHTML = '<div class="empty">Loading…</div>';
     try {
-      const rows = await sbFetch('tournaments?select=id,tourney_date,created_at,user_id&order=tourney_date.desc,created_at.asc');
+      // Fetch all tournaments (requires admin RLS policy — see setup note below)
+      const [rows, subs] = await Promise.all([
+        sbFetch('tournaments?select=id,tourney_date,created_at,user_id&order=tourney_date.desc,created_at.asc'),
+        sbFetch('subscriptions?select=user_id,user_email,user_name&order=created_at.desc'),
+      ]);
+
+      // Build user_id → display label map from subscriptions
+      const userMap = {};
+      (subs || []).forEach(s => {
+        if (s.user_id) userMap[s.user_id] = s.user_email || s.user_name || s.user_id;
+      });
+
       if (!rows || rows.length === 0) {
-        listEl.innerHTML = '<div class="empty">No saved tournaments yet.</div>';
+        listEl.innerHTML = '<div class="empty">No saved tournaments found. If you expect to see other users\' data, make sure the Supabase RLS admin policies are applied (see setup instructions).</div>';
         return;
       }
+
       // Group by tourney_date
       const byDate = {};
       rows.forEach(r => {
         if (!byDate[r.tourney_date]) byDate[r.tourney_date] = [];
         byDate[r.tourney_date].push(r);
       });
+
       listEl.innerHTML = '';
+      const isOwnOnly = rows.every(r => r.user_id === sbSession?.user?.id);
+      if (isOwnOnly && rows.length > 0) {
+        const warn = document.createElement('div');
+        warn.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid var(--warn);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px';
+        warn.innerHTML = '⚠️ Only your own tournaments are visible. To see and delete all users\' data, run the admin RLS policies in your Supabase SQL Editor (see instructions above this panel).';
+        listEl.appendChild(warn);
+      }
+
       Object.keys(byDate).sort((a, b) => b.localeCompare(a)).forEach(date => {
         const group = byDate[date];
         const dateHeader = document.createElement('div');
@@ -2452,23 +2492,32 @@
         listEl.appendChild(dateHeader);
         group.forEach((row, idx) => {
           const num = idx + 1;
+          const userLabel = userMap[row.user_id] || row.user_id?.slice(0, 8) + '…' || '—';
           const item = document.createElement('div');
           item.className = 'admin-sub-row';
           item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap';
           const info = document.createElement('div');
-          info.innerHTML = `<span style="font-weight:600">Tournament #${num}</span> <span style="font-size:12px;color:var(--muted)">— ${new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+          info.innerHTML = `
+            <div style="font-weight:600">Tournament #${num} <span style="font-size:12px;color:var(--muted);font-weight:400">— ${new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">👤 ${esc(userLabel)}</div>`;
           const delBtn = document.createElement('button');
           delBtn.className = 'secondary';
           delBtn.textContent = '🗑 Delete';
           delBtn.style.cssText = 'font-size:12px;padding:6px 12px;color:var(--warn)';
           delBtn.addEventListener('click', async () => {
-            if (!confirm(`Delete Tournament #${num} from ${dateHeader.textContent}? This cannot be undone.`)) return;
+            if (!confirm(`Delete Tournament #${num} from ${dateHeader.textContent} (saved by ${userLabel})?\n\nThis cannot be undone.`)) return;
             delBtn.disabled = true;
             try {
-              await sbFetch(`tournaments?id=eq.${row.id}`, { method: 'DELETE', prefer: 'return=minimal' });
+              const result = await sbFetch(`tournaments?id=eq.${row.id}`, { method: 'DELETE', prefer: 'return=minimal' });
               toast(`Deleted Tournament #${num} from ${dateHeader.textContent}`);
               loadAdminTournaments();
-            } catch (e) { toast('Error: ' + e.message); delBtn.disabled = false; }
+            } catch (e) {
+              const msg = e.message.includes('42501') || e.message.includes('permission')
+                ? 'Permission denied — apply admin RLS policies in Supabase first'
+                : e.message;
+              toast('Error: ' + msg);
+              delBtn.disabled = false;
+            }
           });
           item.appendChild(info);
           item.appendChild(delBtn);
