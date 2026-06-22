@@ -207,6 +207,39 @@
     .diagram-box { min-width: 108px; padding: 10px 9px; }
     .diagram-arrow { font-size: 14px; padding: 0 3px; }
   }
+  /* ── Court Booking & Split ── */
+  .cb-section { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--panel-2); }
+  .cb-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .cb-section-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .cb-form { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .cb-item { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .cb-item-info { flex: 1; min-width: 0; }
+  .cb-item-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .cb-item-sub { font-size: 12px; color: var(--muted); }
+  .cb-item-amount { font-size: 17px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .cb-type-badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 700; text-transform: uppercase; flex-shrink: 0; }
+  .cb-type-badge.court { background: #0ea5e9; color: #fff; }
+  .cb-type-badge.shuttle { background: #f59e0b; color: #000; }
+  .cb-type-badge.snacks { background: #ec4899; color: #fff; }
+  .cb-type-badge.misc { background: #475569; color: #e2e8f0; }
+  .cb-split-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+  .cb-split-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--panel-2); }
+  .cb-split-table td { padding: 10px; border-bottom: 1px solid rgba(71,85,105,0.35); }
+  .cb-split-table tr.credit td .cb-bal { color: var(--accent); font-weight: 700; }
+  .cb-split-table tr.debit td .cb-bal { color: var(--warn); font-weight: 700; }
+  .cb-settlement { background: var(--panel-2); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .cb-settlement .s-from { color: var(--warn); font-weight: 700; }
+  .cb-settlement .s-to { color: var(--accent); font-weight: 700; }
+  .cb-settlement .s-amt { font-weight: 700; font-size: 15px; }
+  .cb-totals { display: flex; gap: 12px; flex-wrap: wrap; background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .cb-total-box { flex: 1; min-width: 90px; }
+  .cb-total-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+  .cb-total-value { font-size: 18px; font-weight: 700; }
+  select.cb-sel { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; flex: 1; min-width: 120px; cursor: pointer; }
+  select.cb-sel:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .cb-date-input { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; flex: 0 0 auto; }
+  .cb-num-input { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; width: 130px; }
+  .cb-num-input:focus, .cb-date-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 </style>
 </head>
 <body>
@@ -384,6 +417,14 @@
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Review and approve or reject subscription payment requests.</p>
     <div id="adminSubList"><div class="empty">Loading…</div></div>
+
+    <hr style="border:none;border-top:1px solid var(--panel-2);margin:24px 0 18px">
+
+    <div class="section-title-row" style="margin-bottom:10px">
+      <h3 style="margin:0;font-size:16px">🏸 Manage Saved Tournaments</h3>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Delete any saved tournament by date and tournament number.</p>
+    <div id="adminTourneyList"><div class="empty">Loading…</div></div>
   </div>
 
   <!-- Contact Us -->
@@ -420,6 +461,74 @@
     <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.8">
       When you subscribe, we collect your <strong style="color:var(--text)">name, email address, country, and mobile number</strong>. This information is used solely to process your subscription and verify payment. It is visible only to the app administrator and stored securely in Supabase. We do not share your data with any third party. Your subscription is valid for <strong style="color:var(--text)">12 months</strong> from the date of approval and must be renewed annually. To request deletion of your data, contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a>.
     </p>
+  </div>
+
+  <!-- Court Booking & Split Module (auth-gated) -->
+  <div class="panel" id="courtPanel" style="display:none">
+    <div class="section-title-row" style="margin-bottom:4px">
+      <h2 style="margin:0">🏟️ Court Booking &amp; Split</h2>
+      <button class="secondary" id="cbClearAllBtn" style="font-size:12px;padding:6px 10px">🗑 Clear Entries</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 20px">Track court bookings and split all costs among your group.</p>
+
+    <!-- 1. Group Members -->
+    <div class="cb-section">
+      <div class="cb-section-title">👥 Group Members</div>
+      <div class="row">
+        <input type="text" id="cbMemberInput" placeholder="Member name" />
+        <button id="cbAddMemberBtn">Add</button>
+      </div>
+      <div id="cbMemberList" class="player-list" style="margin-top:10px"></div>
+      <div id="cbMemberEmpty" class="empty" style="display:none">No members yet — add your group to enable split tracking.</div>
+    </div>
+
+    <!-- 2. Add Court Booking -->
+    <div class="cb-section">
+      <div class="cb-section-title">📅 Add Court Booking</div>
+      <div class="cb-form">
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input type="date" id="cbDate" class="cb-date-input" />
+          <input type="time" id="cbTimeFrom" class="cb-date-input" title="From" />
+          <span style="color:var(--muted);align-self:center">–</span>
+          <input type="time" id="cbTimeTo" class="cb-date-input" title="To" />
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <select class="cb-sel" id="cbPaidBy"></select>
+          <input type="number" id="cbAmount" class="cb-num-input" placeholder="Amount paid" min="0" step="0.01" />
+          <input type="text" id="cbNote" placeholder="Note (e.g. Court 3)" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;flex:1;min-width:120px" />
+          <button id="cbAddBookingBtn">Add Booking</button>
+        </div>
+      </div>
+      <div id="cbBookingList"></div>
+    </div>
+
+    <!-- 3. Other Expenses -->
+    <div class="cb-section">
+      <div class="cb-section-title">🛒 Other Expenses</div>
+      <div class="cb-form">
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input type="date" id="cbExpDate" class="cb-date-input" />
+          <select class="cb-sel" id="cbExpType" style="max-width:150px">
+            <option value="shuttle">🏸 Shuttle</option>
+            <option value="snacks">🍟 Snacks</option>
+            <option value="misc">📦 Misc</option>
+          </select>
+          <input type="text" id="cbExpDesc" placeholder="Description (optional)" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;flex:1;min-width:120px" />
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <select class="cb-sel" id="cbExpPaidBy"></select>
+          <input type="number" id="cbExpAmount" class="cb-num-input" placeholder="Amount" min="0" step="0.01" />
+          <button id="cbAddExpBtn">Add Expense</button>
+        </div>
+      </div>
+      <div id="cbExpList"></div>
+    </div>
+
+    <!-- 4. Split Summary -->
+    <div class="cb-section" id="cbSplitSection" style="display:none">
+      <div class="cb-section-title">💰 Split Summary</div>
+      <div id="cbSplitArea"></div>
+    </div>
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
@@ -1112,6 +1221,9 @@
     const b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b) || a < 0 || b < 0) { showError('Enter valid scores for both teams'); return; }
     if (a === b) { showError('Scores cannot be equal — there must be a winner'); return; }
+    const pts = getPointsPerGame();
+    if (a >= pts && b >= pts) { showError(`Winning score must be exactly ${pts} or more, but not both teams`); return; }
+    if (Math.max(a, b) < pts) { showError(`Winning score must be at least ${pts}`); return; }
     pushHistory();
     const game = match.games[0];
     game.a = a;
@@ -1750,9 +1862,23 @@
       document.getElementById('subMobileLabel').textContent = info.mobile;
       document.getElementById('subCheckLabel').textContent = `I have paid ${info.amount} via ${info.method}`;
       document.getElementById('subPaymentCard').style.display = '';
+      // Set country-specific mobile placeholder and maxlength
+      const mobileInput = document.getElementById('subMobileInput');
+      if (code === 'SG') {
+        mobileInput.placeholder = '9-digit Singapore number (e.g. 91234567)';
+        mobileInput.maxLength = 9;
+      } else if (code === 'IN') {
+        mobileInput.placeholder = '10-digit India number (e.g. 9849504494)';
+        mobileInput.maxLength = 10;
+      } else {
+        mobileInput.placeholder = 'Mobile number used for payment';
+        mobileInput.maxLength = 20;
+      }
     } else {
       document.getElementById('subCheckLabel').textContent = 'I have paid the subscription amount';
       document.getElementById('subOtherMsg').style.display = '';
+      document.getElementById('subMobileInput').placeholder = 'Mobile number used for payment';
+      document.getElementById('subMobileInput').maxLength = 20;
     }
   }
 
@@ -1931,6 +2057,16 @@
     });
   }
 
+  function signInDifferentAccount() {
+    sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: { prompt: 'select_account' },
+      }
+    });
+  }
+
   function renderAuth() {
     const bar = document.getElementById('authBar');
     const user = sbSession?.user;
@@ -1941,8 +2077,10 @@
       bar.innerHTML = `
         <span class="auth-avatar">${initial}</span>
         <span style="color:var(--text)">${name}</span>
-        <button class="secondary" id="signOutBtn" style="padding:6px 12px;font-size:13px;margin-left:auto">Sign out</button>
+        <button class="secondary" id="switchAccountBtn" style="padding:6px 12px;font-size:13px;margin-left:auto">Switch account</button>
+        <button class="secondary" id="signOutBtn" style="padding:6px 12px;font-size:13px">Sign out</button>
       `;
+      document.getElementById('switchAccountBtn').addEventListener('click', signInDifferentAccount);
       document.getElementById('signOutBtn').addEventListener('click', () => sb.auth.signOut());
     } else {
       bar.innerHTML = `
@@ -1959,8 +2097,9 @@
     document.getElementById('statsAuthArea').style.display = isAuth ? '' : 'none';
     const adminVisible = isAuth && isAdminUser();
     document.getElementById('adminPanel').style.display = adminVisible ? '' : 'none';
-    if (adminVisible) loadAdminSubscriptions();
+    if (adminVisible) { loadAdminSubscriptions(); loadAdminTournaments(); }
     if (isAuth) renderSubStatus();
+    initCourtModule();
     cloudRender();
   }
 
@@ -2284,7 +2423,62 @@
     return div;
   }
 
-  document.getElementById('refreshAdminBtn').addEventListener('click', loadAdminSubscriptions);
+  document.getElementById('refreshAdminBtn').addEventListener('click', () => {
+    loadAdminSubscriptions();
+    loadAdminTournaments();
+  });
+
+  async function loadAdminTournaments() {
+    const listEl = document.getElementById('adminTourneyList');
+    listEl.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const rows = await sbFetch('tournaments?select=id,tourney_date,created_at,user_id&order=tourney_date.desc,created_at.asc');
+      if (!rows || rows.length === 0) {
+        listEl.innerHTML = '<div class="empty">No saved tournaments yet.</div>';
+        return;
+      }
+      // Group by tourney_date
+      const byDate = {};
+      rows.forEach(r => {
+        if (!byDate[r.tourney_date]) byDate[r.tourney_date] = [];
+        byDate[r.tourney_date].push(r);
+      });
+      listEl.innerHTML = '';
+      Object.keys(byDate).sort((a, b) => b.localeCompare(a)).forEach(date => {
+        const group = byDate[date];
+        const dateHeader = document.createElement('div');
+        dateHeader.style.cssText = 'font-size:13px;font-weight:600;color:var(--muted);margin:10px 0 6px';
+        dateHeader.textContent = new Date(date + 'T00:00:00').toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+        listEl.appendChild(dateHeader);
+        group.forEach((row, idx) => {
+          const num = idx + 1;
+          const item = document.createElement('div');
+          item.className = 'admin-sub-row';
+          item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap';
+          const info = document.createElement('div');
+          info.innerHTML = `<span style="font-weight:600">Tournament #${num}</span> <span style="font-size:12px;color:var(--muted)">— ${new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+          const delBtn = document.createElement('button');
+          delBtn.className = 'secondary';
+          delBtn.textContent = '🗑 Delete';
+          delBtn.style.cssText = 'font-size:12px;padding:6px 12px;color:var(--warn)';
+          delBtn.addEventListener('click', async () => {
+            if (!confirm(`Delete Tournament #${num} from ${dateHeader.textContent}? This cannot be undone.`)) return;
+            delBtn.disabled = true;
+            try {
+              await sbFetch(`tournaments?id=eq.${row.id}`, { method: 'DELETE', prefer: 'return=minimal' });
+              toast(`Deleted Tournament #${num} from ${dateHeader.textContent}`);
+              loadAdminTournaments();
+            } catch (e) { toast('Error: ' + e.message); delBtn.disabled = false; }
+          });
+          item.appendChild(info);
+          item.appendChild(delBtn);
+          listEl.appendChild(item);
+        });
+      });
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty" style="color:var(--warn)">${esc(e.message)}</div>`;
+    }
+  }
 
   // Show/hide cloud save panel based on tournament completion
   function cloudRender() {
@@ -2322,6 +2516,275 @@
       el.innerHTML = `❌ <span style="color:var(--warn)">Subscription rejected — contact ${ADMIN_EMAIL}</span>`;
     } else {
       el.innerHTML = '';
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Court Booking & Split Module
+  // ─────────────────────────────────────────────
+  let cbState = null;
+
+  function cbStorageKey() {
+    return `badminton-cb-${sbSession?.user?.id || 'guest'}-v1`;
+  }
+
+  function cbLoad() {
+    try {
+      const raw = localStorage.getItem(cbStorageKey());
+      return { members: [], bookings: [], expenses: [], ...(raw ? JSON.parse(raw) : {}) };
+    } catch { return { members: [], bookings: [], expenses: [] }; }
+  }
+
+  function cbSave() {
+    try { localStorage.setItem(cbStorageKey(), JSON.stringify(cbState)); } catch {}
+  }
+
+  function cbUid() { return Math.random().toString(36).slice(2, 10); }
+
+  function cbFmt(n) {
+    return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function cbTodayISO() { return new Date().toISOString().slice(0, 10); }
+
+  function initCourtModule() {
+    const panel = document.getElementById('courtPanel');
+    if (!sbSession) { panel.style.display = 'none'; cbState = null; return; }
+    cbState = cbLoad();
+    panel.style.display = '';
+    // Default date inputs to today
+    ['cbDate', 'cbExpDate'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el.value) el.value = cbTodayISO();
+    });
+    renderCB();
+  }
+
+  // ── Members ──
+  document.getElementById('cbMemberInput').addEventListener('keydown', e => { if (e.key === 'Enter') cbAddMember(); });
+  document.getElementById('cbAddMemberBtn').addEventListener('click', cbAddMember);
+
+  function cbAddMember() {
+    if (!cbState) return;
+    const name = document.getElementById('cbMemberInput').value.trim();
+    if (!name) return;
+    if (cbState.members.some(m => m.toLowerCase() === name.toLowerCase())) { toast('Member already in group'); return; }
+    cbState.members.push(name);
+    document.getElementById('cbMemberInput').value = '';
+    cbSave(); renderCB();
+  }
+
+  // ── Bookings ──
+  document.getElementById('cbAddBookingBtn').addEventListener('click', () => {
+    if (!cbState) return;
+    const date = document.getElementById('cbDate').value;
+    const timeFrom = document.getElementById('cbTimeFrom').value;
+    const timeTo = document.getElementById('cbTimeTo').value;
+    const paidBy = document.getElementById('cbPaidBy').value;
+    const amount = parseFloat(document.getElementById('cbAmount').value);
+    const note = document.getElementById('cbNote').value.trim();
+    if (!date || !paidBy) { toast('Select date and who paid'); return; }
+    if (isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
+    cbState.bookings.push({ id: cbUid(), date, timeFrom, timeTo, paidBy, amount, note });
+    document.getElementById('cbAmount').value = '';
+    document.getElementById('cbNote').value = '';
+    cbSave(); renderCB(); toast('Booking added');
+  });
+
+  // ── Expenses ──
+  document.getElementById('cbAddExpBtn').addEventListener('click', () => {
+    if (!cbState) return;
+    const date = document.getElementById('cbExpDate').value;
+    const type = document.getElementById('cbExpType').value;
+    const desc = document.getElementById('cbExpDesc').value.trim();
+    const paidBy = document.getElementById('cbExpPaidBy').value;
+    const amount = parseFloat(document.getElementById('cbExpAmount').value);
+    if (!date || !paidBy) { toast('Select date and who paid'); return; }
+    if (isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
+    cbState.expenses.push({ id: cbUid(), date, type, desc, paidBy, amount });
+    document.getElementById('cbExpAmount').value = '';
+    document.getElementById('cbExpDesc').value = '';
+    cbSave(); renderCB(); toast('Expense added');
+  });
+
+  // ── Clear entries ──
+  document.getElementById('cbClearAllBtn').addEventListener('click', () => {
+    if (!cbState) return;
+    if (!confirm('Clear all court bookings and expenses? Group members will be kept.')) return;
+    cbState.bookings = [];
+    cbState.expenses = [];
+    cbSave(); renderCB(); toast('Entries cleared');
+  });
+
+  // ── Split computation ──
+  function computeCBSplit() {
+    const { members, bookings, expenses } = cbState;
+    if (!members.length) return null;
+    const paid = Object.fromEntries(members.map(m => [m, 0]));
+    [...bookings, ...expenses].forEach(x => { if (x.paidBy in paid) paid[x.paidBy] += x.amount; });
+    const totalCourt = bookings.reduce((s, b) => s + b.amount, 0);
+    const totalMisc  = expenses.reduce((s, e) => s + e.amount, 0);
+    const total = totalCourt + totalMisc;
+    const share = total / members.length;
+    const balances = members.map(m => ({
+      name: m,
+      paid: paid[m],
+      share,
+      balance: +(paid[m] - share).toFixed(2),
+    }));
+    // Minimal settlements (greedy)
+    const creds = balances.filter(b => b.balance > 0.005).map(b => ({ name: b.name, rem: b.balance })).sort((a,b) => b.rem-a.rem);
+    const debts = balances.filter(b => b.balance < -0.005).map(b => ({ name: b.name, rem: -b.balance })).sort((a,b) => b.rem-a.rem);
+    const settlements = [];
+    let ci = 0, di = 0;
+    while (ci < creds.length && di < debts.length) {
+      const amt = Math.min(creds[ci].rem, debts[di].rem);
+      if (amt > 0.005) settlements.push({ from: debts[di].name, to: creds[ci].name, amount: +amt.toFixed(2) });
+      creds[ci].rem -= amt; debts[di].rem -= amt;
+      if (creds[ci].rem < 0.005) ci++;
+      if (debts[di].rem < 0.005) di++;
+    }
+    return { total, totalCourt, totalMisc, share, balances, settlements };
+  }
+
+  // ── Main render ──
+  function renderCB() {
+    if (!cbState) return;
+    const { members, bookings, expenses } = cbState;
+
+    // Members list
+    const memberList = document.getElementById('cbMemberList');
+    const memberEmpty = document.getElementById('cbMemberEmpty');
+    memberList.innerHTML = '';
+    memberEmpty.style.display = members.length ? 'none' : '';
+    members.forEach((m, i) => {
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.innerHTML = `<span></span><button title="Remove">×</button>`;
+      pill.firstChild.textContent = m;
+      pill.querySelector('button').addEventListener('click', () => {
+        const inUse = [...bookings, ...expenses].some(x => x.paidBy === m);
+        if (inUse && !confirm(`${m} has entries. Remove anyway? Their entries will show "unknown payer" in the split.`)) return;
+        cbState.members.splice(i, 1);
+        cbSave(); renderCB();
+      });
+      memberList.appendChild(pill);
+    });
+
+    // Sync paidBy dropdowns
+    const opts = members.length
+      ? members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')
+      : '<option value="">— Add members first —</option>';
+    ['cbPaidBy', 'cbExpPaidBy'].forEach(id => {
+      const sel = document.getElementById(id);
+      const prev = sel.value;
+      sel.innerHTML = opts;
+      if (prev && members.includes(prev)) sel.value = prev;
+    });
+
+    // Bookings list
+    const bookingList = document.getElementById('cbBookingList');
+    bookingList.innerHTML = '';
+    if (!bookings.length) {
+      bookingList.innerHTML = '<div class="empty">No bookings yet.</div>';
+    } else {
+      [...bookings].sort((a,b) => b.date.localeCompare(a.date) || (b.timeFrom||'').localeCompare(a.timeFrom||'')).forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'cb-item';
+        const timeStr = b.timeFrom ? `${b.timeFrom}${b.timeTo ? ' – '+b.timeTo : ''}` : '';
+        div.innerHTML = `
+          <div class="cb-item-info">
+            <div class="cb-item-title"><span class="cb-type-badge court">Court</span> ${esc(b.date)}${timeStr ? ' · '+timeStr : ''}</div>
+            <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(b.paidBy)}</strong>${b.note ? ' · '+esc(b.note) : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="cb-item-amount">${cbFmt(b.amount)}</div>
+            <button class="secondary" style="padding:5px 8px;font-size:12px" data-id="${b.id}">✕</button>
+          </div>`;
+        div.querySelector('button').addEventListener('click', () => { cbState.bookings = cbState.bookings.filter(x => x.id !== b.id); cbSave(); renderCB(); });
+        bookingList.appendChild(div);
+      });
+    }
+
+    // Expenses list
+    const expList = document.getElementById('cbExpList');
+    expList.innerHTML = '';
+    if (!expenses.length) {
+      expList.innerHTML = '<div class="empty">No expenses yet.</div>';
+    } else {
+      const typeIcon = { shuttle: '🏸 Shuttle', snacks: '🍟 Snacks', misc: '📦 Misc' };
+      [...expenses].sort((a,b) => b.date.localeCompare(a.date)).forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'cb-item';
+        div.innerHTML = `
+          <div class="cb-item-info">
+            <div class="cb-item-title"><span class="cb-type-badge ${esc(e.type)}">${typeIcon[e.type]||e.type}</span> ${esc(e.date)}${e.desc ? ' · '+esc(e.desc) : ''}</div>
+            <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(e.paidBy)}</strong></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="cb-item-amount">${cbFmt(e.amount)}</div>
+            <button class="secondary" style="padding:5px 8px;font-size:12px" data-id="${e.id}">✕</button>
+          </div>`;
+        div.querySelector('button').addEventListener('click', () => { cbState.expenses = cbState.expenses.filter(x => x.id !== e.id); cbSave(); renderCB(); });
+        expList.appendChild(div);
+      });
+    }
+
+    // Split summary
+    const splitSection = document.getElementById('cbSplitSection');
+    const splitArea = document.getElementById('cbSplitArea');
+    if (!members.length || (!bookings.length && !expenses.length)) {
+      splitSection.style.display = 'none'; return;
+    }
+    splitSection.style.display = '';
+    splitArea.innerHTML = '';
+    const split = computeCBSplit();
+    if (!split) return;
+
+    // Totals strip
+    const totals = document.createElement('div');
+    totals.className = 'cb-totals';
+    totals.innerHTML = [
+      ['Court Total', cbFmt(split.totalCourt), ''],
+      ['Misc Total', cbFmt(split.totalMisc), ''],
+      ['Grand Total', cbFmt(split.total), 'color:var(--accent)'],
+      ['Per Person', cbFmt(split.share), 'color:var(--accent)'],
+    ].map(([label, val, style]) =>
+      `<div class="cb-total-box"><div class="cb-total-label">${label}</div><div class="cb-total-value" style="${style}">${val}</div></div>`
+    ).join('');
+    splitArea.appendChild(totals);
+
+    // Balance table
+    const table = document.createElement('table');
+    table.className = 'cb-split-table';
+    table.innerHTML = '<thead><tr><th>Member</th><th>Paid</th><th>Fair Share</th><th>Balance</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    split.balances.forEach(b => {
+      const tr = document.createElement('tr');
+      tr.className = b.balance > 0.005 ? 'credit' : b.balance < -0.005 ? 'debit' : '';
+      const balStr = b.balance > 0.005
+        ? `<span class="cb-bal">+${cbFmt(b.balance)} ← gets back</span>`
+        : b.balance < -0.005
+          ? `<span class="cb-bal">−${cbFmt(-b.balance)} → owes</span>`
+          : '<span style="color:var(--muted)">✓ settled</span>';
+      tr.innerHTML = `<td><strong>${esc(b.name)}</strong></td><td>${cbFmt(b.paid)}</td><td>${cbFmt(b.share)}</td><td>${balStr}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    splitArea.appendChild(table);
+
+    // Settlement instructions
+    if (split.settlements.length) {
+      const heading = document.createElement('div');
+      heading.style.cssText = 'font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px';
+      heading.textContent = 'Who pays whom';
+      splitArea.appendChild(heading);
+      split.settlements.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'cb-settlement';
+        row.innerHTML = `<span class="s-from">${esc(s.from)}</span> <span style="color:var(--muted)">pays</span> <span class="s-to">${esc(s.to)}</span> <span style="color:var(--muted)">→</span> <span class="s-amt">${cbFmt(s.amount)}</span>`;
+        splitArea.appendChild(row);
+      });
     }
   }
 
