@@ -271,7 +271,8 @@
         <button class="save-cloud-btn" id="saveCloudBtn">☁️ Save Tournament</button>
       </div>
     </div>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Tournament complete! Save the results to Supabase so you can review them later.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Tournament complete! Save the results to Supabase so you can review them later.</p>
+    <div id="cloudTodayCount" style="font-size:13px;color:var(--muted);margin-bottom:4px"></div>
     <div id="cloudStatus" style="font-size:13px;margin-top:4px"></div>
   </div>
 
@@ -1357,19 +1358,38 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   }
 
   // Save full tournament to cloud
+  async function fetchTodayCount() {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const rows = await sbFetch(`tournaments?tourney_date=eq.${today}&select=id`);
+      return rows ? rows.length : 0;
+    } catch { return 0; }
+  }
+
+  async function refreshTodayCount() {
+    const el = document.getElementById('cloudTodayCount');
+    if (!el) return;
+    const count = await fetchTodayCount();
+    el.textContent = count > 0
+      ? `${count} tournament${count > 1 ? 's' : ''} already saved today — this will be #${count + 1}.`
+      : 'No tournaments saved yet today — this will be the first.';
+  }
+
   document.getElementById('saveCloudBtn').addEventListener('click', async () => {
     const btn = document.getElementById('saveCloudBtn');
     btn.disabled = true;
     setCloudStatus('Saving…', 'var(--muted)');
     try {
       const tourney_date = new Date().toISOString().slice(0, 10);
+      const countBefore = await fetchTodayCount();
       await sbFetch('tournaments?', {
         method: 'POST',
         prefer: 'return=minimal',
         body: JSON.stringify({ tourney_date, data: state }),
       });
-      setCloudStatus(`✅ Saved! Tournament from ${tourney_date} is in the cloud.`, 'var(--accent)');
-      fetchHistoryList();
+      const num = countBefore + 1;
+      setCloudStatus(`✅ Saved as Tournament #${num} for ${tourney_date}.`, 'var(--accent)');
+      refreshTodayCount();
     } catch (e) {
       setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
       document.getElementById('cloudConfigDetails').open = true;
@@ -1404,12 +1424,22 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
       }
       area.innerHTML = '';
       rows.forEach((row, idx) => {
-        if (rows.length > 1) {
-          const label = document.createElement('h3');
-          label.style.cssText = 'margin:16px 0 8px;font-size:14px;color:var(--muted)';
-          label.textContent = `Game ${idx + 1} of ${rows.length}`;
-          area.appendChild(label);
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:12px;margin:' + (idx === 0 ? '0' : '24px') + ' 0 12px';
+        const badge = document.createElement('span');
+        badge.style.cssText = 'background:var(--panel-2);border-radius:999px;padding:4px 14px;font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap';
+        badge.textContent = rows.length > 1 ? `Tournament ${idx + 1} of ${rows.length}` : 'Tournament';
+        const time = document.createElement('span');
+        time.style.cssText = 'font-size:12px;color:var(--muted)';
+        time.textContent = new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        header.appendChild(badge);
+        header.appendChild(time);
+        if (idx > 0) {
+          const divider = document.createElement('hr');
+          divider.style.cssText = 'border:0;border-top:1px solid var(--panel-2);margin:24px 0 16px';
+          area.appendChild(divider);
         }
+        area.appendChild(header);
         renderHistory(row, area);
       });
       document.getElementById('clearHistoryBtn').style.display = '';
@@ -1429,14 +1459,7 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
 
   function renderHistory(row, area) {
     if (!area) area = document.getElementById('historyArea');
-    area.innerHTML = '';
     const saved = row.data;
-    const savedAt = new Date(row.created_at).toLocaleString();
-
-    const meta = document.createElement('div');
-    meta.style.cssText = 'font-size:13px;color:var(--muted);margin-bottom:14px';
-    meta.textContent = `Tournament date: ${row.tourney_date} · Saved: ${savedAt}`;
-    area.appendChild(meta);
 
     // Winner banner
     const finalRound = (saved.rounds || []).slice().reverse().find(r => r.phase === 'final');
@@ -1485,10 +1508,17 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   }
 
   // Show/hide cloud save panel based on tournament completion
+  let _wasOver = false;
   function cloudRender() {
     const lastRound = state.rounds[state.rounds.length - 1];
-    const tournamentOver = lastRound && lastRound.phase === 'final' && lastRound.matches[0]?.winner;
+    const tournamentOver = !!(lastRound && lastRound.phase === 'final' && lastRound.matches[0]?.winner);
     document.getElementById('cloudPanel').style.display = tournamentOver ? '' : 'none';
+    // Refresh today's count whenever the panel first becomes visible
+    if (tournamentOver && !_wasOver) {
+      document.getElementById('cloudStatus').textContent = '';
+      refreshTodayCount();
+    }
+    _wasOver = tournamentOver;
   }
 
   // Trigger history list load on startup (will silently fail if not configured)
