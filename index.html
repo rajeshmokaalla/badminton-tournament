@@ -2640,18 +2640,14 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
   // ── Supabase CRUD ──
   async function cbLoadMembers() {
     if (!sbSession) return;
-    try {
-      const rows = await sbFetch(`court_members?user_id=eq.${sbSession.user.id}&select=*&order=joined_date.asc,created_at.asc`);
-      cbMembers = rows || [];
-    } catch { cbMembers = []; }
+    const rows = await sbFetch(`court_members?user_id=eq.${sbSession.user.id}&select=*&order=joined_date.asc,created_at.asc`);
+    cbMembers = rows || [];
   }
 
   async function cbLoadBookings() {
     if (!sbSession) return;
-    try {
-      const rows = await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}&select=*&order=booking_date.desc,created_at.desc`);
-      cbBookings = rows || [];
-    } catch { cbBookings = []; }
+    const rows = await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}&select=*&order=booking_date.desc,created_at.desc`);
+    cbBookings = rows || [];
   }
 
   async function cbSaveMember(name, joinedDate) {
@@ -2700,8 +2696,18 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
     ['cbDate', 'cbExpDate'].forEach(id => { const el = document.getElementById(id); if (el && !el.value) el.value = cbTodayISO(); });
     const joinEl = document.getElementById('cbMemberJoinDate');
     if (joinEl && !joinEl.value) joinEl.value = cbTodayISO();
-    await Promise.all([cbLoadMembers(), cbLoadBookings()]);
-    renderCB();
+    try {
+      await Promise.all([cbLoadMembers(), cbLoadBookings()]);
+      renderCB();
+    } catch (e) {
+      // Tables don't exist yet — open the SQL setup block and show a banner
+      const setupDetails = panel.querySelector('details');
+      if (setupDetails) setupDetails.open = true;
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#1e293b;border:1px solid var(--accent);border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:1.6';
+      banner.innerHTML = `<strong style="color:var(--accent)">⚠️ One-time setup required</strong><br>The court tables don't exist in your Supabase project yet.<br>Copy the SQL below and run it in your <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">Supabase SQL Editor</a>, then reload this page.`;
+      panel.insertBefore(banner, panel.firstChild);
+    }
   }
 
   // ── Members ──
