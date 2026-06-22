@@ -307,6 +307,7 @@
     </div>
     <div id="cloudTodayCount" style="font-size:13px;color:var(--muted);margin-bottom:4px"></div>
     <div id="cloudStatus" style="font-size:13px;margin-top:4px"></div>
+    <div id="subStatusBadge" style="font-size:13px;margin-top:6px"></div>
   </div>
 
   <!-- Past Tournaments Panel -->
@@ -377,7 +378,8 @@
       <div class="sub-mobile-num" id="subMobileLabel"></div>
     </div>
     <div id="subOtherMsg" style="display:none;background:var(--panel-2);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;color:var(--muted)">
-      Subscription: USD $15/year. Please arrange payment and note the mobile number you used.
+      Subscription: <strong style="color:var(--text)">USD $15 / year</strong><br>
+      Contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a> to arrange payment, then fill in your details below.
     </div>
     <div style="margin-top:14px">
       <div style="margin-bottom:12px">
@@ -1481,11 +1483,16 @@
   }
 
   async function checkSubscription() {
-    if (!sbSession) return false;
+    return (await checkSubscriptionStatus()) === 'approved';
+  }
+
+  async function checkSubscriptionStatus() {
+    if (!sbSession) return 'none';
     try {
-      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&status=eq.approved&select=id`);
-      return rows && rows.length > 0;
-    } catch { return false; }
+      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=status&order=created_at.desc&limit=1`);
+      if (!rows || rows.length === 0) return 'none';
+      return rows[0].status || 'pending';
+    } catch { return 'none'; }
   }
 
   async function detectCountry() {
@@ -1594,14 +1601,24 @@
     btn.disabled = true;
     setCloudStatus('Checking…', 'var(--muted)');
     try {
-      const [hasSub, total] = await Promise.all([checkSubscription(), countUserTournaments()]);
-      if (!hasSub && total >= 3) {
-        btn.disabled = false;
-        setCloudStatus('Free limit reached — subscribe to save more.', 'var(--muted)');
-        openSubscriptionModal();
+      const total = await countUserTournaments();
+      if (total < 3) { await doSaveTournament(); return; }
+
+      const subStatus = await checkSubscriptionStatus();
+      if (subStatus === 'approved') { await doSaveTournament(); return; }
+
+      btn.disabled = false;
+      if (subStatus === 'pending') {
+        setCloudStatus('⏳ Your subscription request is pending approval. Saves resume once admin verifies your payment.', '#f59e0b');
         return;
       }
-      await doSaveTournament();
+      if (subStatus === 'rejected') {
+        setCloudStatus(`❌ Your subscription request was rejected. Contact ${ADMIN_EMAIL} for help.`, 'var(--warn)');
+        return;
+      }
+      // No subscription at all — show payment modal
+      setCloudStatus('', '');
+      openSubscriptionModal();
     } catch (e) {
       setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
       btn.disabled = false;
@@ -1718,6 +1735,7 @@
     const adminVisible = isAuth && isAdminUser();
     document.getElementById('adminPanel').style.display = adminVisible ? '' : 'none';
     if (adminVisible) loadAdminSubscriptions();
+    if (isAuth) renderSubStatus();
     cloudRender();
   }
 
@@ -1923,33 +1941,25 @@
   function isAdminUser() { return sbSession?.user?.email === ADMIN_EMAIL; }
 
   async function notifyAdminByEmail(subData) {
-    if (WEB3FORMS_KEY) {
-      try {
-        await fetch('https://api.web3forms.com/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            access_key: WEB3FORMS_KEY,
-            subject: `New subscription request — ${subData.user_name || subData.user_email}`,
-            from_name: 'Badminton Tournament App',
-            name: subData.user_name || 'Unknown',
-            email: subData.user_email || '',
-            country: `${subData.country} (${subData.country_code})`,
-            amount_paid: subData.amount_paid,
-            payment_method: subData.payment_method,
-            mobile_used: subData.mobile_used,
-            message: `Login to admin panel to approve/reject: https://rajeshmokaalla.github.io/badminton-tournament/`,
-          }),
-        });
-      } catch { /* non-critical */ }
-    } else {
-      // Fallback: open mail client with pre-filled content
-      const subject = encodeURIComponent(`New subscription — ${subData.user_name || subData.user_email}`);
-      const body = encodeURIComponent(
-        `New subscription request:\n\nUser: ${subData.user_name || 'Unknown'}\nEmail: ${subData.user_email}\nCountry: ${subData.country}\nAmount: ${subData.amount_paid}\nMethod: ${subData.payment_method}\nMobile used: ${subData.mobile_used}\n\nApprove/Reject: https://rajeshmokaalla.github.io/badminton-tournament/`
-      );
-      window.open(`mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`);
-    }
+    if (!WEB3FORMS_KEY) return; // admin uses the in-app panel; email is optional
+    try {
+      await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_KEY,
+          subject: `New subscription request — ${subData.user_name || subData.user_email}`,
+          from_name: 'Badminton Tournament App',
+          name: subData.user_name || 'Unknown',
+          email: subData.user_email || '',
+          country: `${subData.country} (${subData.country_code})`,
+          amount_paid: subData.amount_paid,
+          payment_method: subData.payment_method,
+          mobile_used: subData.mobile_used,
+          message: `Approve/Reject: https://rajeshmokaalla.github.io/badminton-tournament/`,
+        }),
+      });
+    } catch { /* non-critical */ }
   }
 
   async function loadAdminSubscriptions() {
@@ -2060,9 +2070,25 @@
       if (isAuth && !_wasOver) {
         document.getElementById('cloudStatus').textContent = '';
         refreshTodayCount();
+        renderSubStatus();
       }
     }
     _wasOver = tournamentOver;
+  }
+
+  async function renderSubStatus() {
+    const el = document.getElementById('subStatusBadge');
+    if (!el || !sbSession) return;
+    const status = await checkSubscriptionStatus();
+    if (status === 'approved') {
+      el.innerHTML = '✅ <span style="color:var(--accent)">Subscribed</span>';
+    } else if (status === 'pending') {
+      el.innerHTML = '⏳ <span style="color:#f59e0b">Subscription pending approval</span>';
+    } else if (status === 'rejected') {
+      el.innerHTML = `❌ <span style="color:var(--warn)">Subscription rejected — contact ${ADMIN_EMAIL}</span>`;
+    } else {
+      el.innerHTML = '';
+    }
   }
 
   // Trigger history list load on startup (will silently fail if not configured)
