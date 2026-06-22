@@ -172,6 +172,18 @@
   .google-btn:hover { background: #f3f4f6; }
   .guest-prompt { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
   .history-winner-name { color: var(--accent); }
+  /* ── Subscription Modal ── */
+  .sub-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1100; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .sub-modal.open { display: flex; }
+  .sub-box { background: var(--panel); border-radius: 16px; padding: 28px 24px; max-width: 420px; width: 100%; box-shadow: var(--shadow); margin: auto; }
+  .sub-box h2 { margin: 0 0 8px; font-size: 20px; }
+  .sub-payment-card { background: var(--panel-2); border-radius: 10px; padding: 18px 16px; margin: 14px 0; text-align: center; border: 2px solid var(--accent); }
+  .sub-amount { font-size: 32px; font-weight: 800; color: var(--accent); margin: 6px 0; }
+  .sub-mobile-num { font-size: 26px; font-weight: 700; letter-spacing: 1px; color: var(--text); margin: 6px 0 2px; }
+  .sub-method-label { font-size: 13px; color: var(--muted); }
+  .sub-check-row { display: flex; align-items: flex-start; gap: 10px; background: var(--panel-2); padding: 12px; border-radius: 8px; margin: 12px 0; cursor: pointer; }
+  .sub-check-row input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+  .sub-check-row span { font-size: 13px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -332,6 +344,43 @@
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
+</div>
+
+<!-- Subscription Modal -->
+<div class="sub-modal" id="subModal">
+  <div class="sub-box">
+    <h2>🔓 Unlock Unlimited Saves</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to keep saving results to the cloud.</p>
+    <div id="subPaymentCard" class="sub-payment-card" style="display:none">
+      <div class="sub-method-label" id="subMethodLabel"></div>
+      <div class="sub-amount" id="subAmountLabel"></div>
+      <div class="sub-method-label">to mobile number:</div>
+      <div class="sub-mobile-num" id="subMobileLabel"></div>
+    </div>
+    <div id="subOtherMsg" style="display:none;background:var(--panel-2);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;color:var(--muted)">
+      Subscription: USD $15/year. Please arrange payment and note the mobile number you used.
+    </div>
+    <div style="margin-top:14px">
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Your country (auto-detected)</label>
+        <input type="text" id="subCountryInput" readonly style="width:100%;background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;cursor:default" />
+      </div>
+      <label class="sub-check-row">
+        <input type="checkbox" id="subPaidCheck" />
+        <span id="subCheckLabel">I have paid the subscription amount</span>
+      </label>
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Mobile number used for payment</label>
+        <input type="text" id="subMobileInput" placeholder="e.g. 9849504494" style="width:100%;background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px" />
+      </div>
+    </div>
+    <div id="subStatus" style="font-size:13px;margin:10px 0 6px;min-height:18px;color:var(--warn)"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <button id="subSubmitBtn" disabled style="flex:1">✓ Confirm &amp; Save Tournament</button>
+      <button class="secondary" id="subCancelBtn">Cancel</button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Yearly subscription. Access granted immediately after confirmation.</p>
+  </div>
 </div>
 
 <!-- QR Code Modal -->
@@ -1380,8 +1429,7 @@
       : 'No tournaments saved yet today — this will be the first.';
   }
 
-  document.getElementById('saveCloudBtn').addEventListener('click', async () => {
-    if (!sbSession) return;
+  async function doSaveTournament() {
     const btn = document.getElementById('saveCloudBtn');
     btn.disabled = true;
     setCloudStatus('Saving…', 'var(--muted)');
@@ -1399,6 +1447,136 @@
     } catch (e) {
       setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
     } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function countUserTournaments() {
+    if (!sbSession) return 0;
+    try {
+      const rows = await sbFetch('tournaments?select=id');
+      return rows ? rows.length : 0;
+    } catch { return 0; }
+  }
+
+  async function checkSubscription() {
+    if (!sbSession) return false;
+    try {
+      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=id`);
+      return rows && rows.length > 0;
+    } catch { return false; }
+  }
+
+  async function detectCountry() {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (!res.ok) throw new Error('');
+      const d = await res.json();
+      return { code: d.country_code || 'OTHER', name: d.country_name || 'Unknown' };
+    } catch {
+      return { code: 'OTHER', name: 'Unknown' };
+    }
+  }
+
+  function getSubInfo(code) {
+    if (code === 'SG') return { amount: 'SGD $15 / year', method: 'PayNow', mobile: '91650536', label: 'Send via PayNow to:' };
+    if (code === 'IN') return { amount: '₹1,000 / year', method: 'PhonePe', mobile: '9849504494', label: 'Send via PhonePe to:' };
+    return null;
+  }
+
+  let _subCountryCode = 'OTHER';
+  let _subCountryName = 'Unknown';
+
+  async function openSubscriptionModal() {
+    const modal = document.getElementById('subModal');
+    modal.classList.add('open');
+    document.getElementById('subPaidCheck').checked = false;
+    document.getElementById('subMobileInput').value = '';
+    document.getElementById('subStatus').textContent = '';
+    document.getElementById('subSubmitBtn').disabled = true;
+    document.getElementById('subCountryInput').value = 'Detecting location…';
+    document.getElementById('subPaymentCard').style.display = 'none';
+    document.getElementById('subOtherMsg').style.display = 'none';
+
+    const { code, name } = await detectCountry();
+    _subCountryCode = code;
+    _subCountryName = name;
+    document.getElementById('subCountryInput').value = name;
+
+    const info = getSubInfo(code);
+    if (info) {
+      document.getElementById('subMethodLabel').textContent = info.label;
+      document.getElementById('subAmountLabel').textContent = info.amount;
+      document.getElementById('subMobileLabel').textContent = info.mobile;
+      document.getElementById('subCheckLabel').textContent = `I have paid ${info.amount} via ${info.method}`;
+      document.getElementById('subPaymentCard').style.display = '';
+    } else {
+      document.getElementById('subCheckLabel').textContent = 'I have paid the subscription amount';
+      document.getElementById('subOtherMsg').style.display = '';
+    }
+  }
+
+  document.getElementById('subCancelBtn').addEventListener('click', () => {
+    document.getElementById('subModal').classList.remove('open');
+  });
+
+  document.getElementById('subModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('subModal'))
+      document.getElementById('subModal').classList.remove('open');
+  });
+
+  function updateSubSubmitBtn() {
+    const checked = document.getElementById('subPaidCheck').checked;
+    const mobile = document.getElementById('subMobileInput').value.trim();
+    document.getElementById('subSubmitBtn').disabled = !checked || !mobile;
+  }
+  document.getElementById('subPaidCheck').addEventListener('change', updateSubSubmitBtn);
+  document.getElementById('subMobileInput').addEventListener('input', updateSubSubmitBtn);
+
+  document.getElementById('subSubmitBtn').addEventListener('click', async () => {
+    const mobile = document.getElementById('subMobileInput').value.trim();
+    if (!mobile || !document.getElementById('subPaidCheck').checked) return;
+    const submitBtn = document.getElementById('subSubmitBtn');
+    submitBtn.disabled = true;
+    document.getElementById('subStatus').textContent = 'Saving subscription…';
+    const info = getSubInfo(_subCountryCode);
+    try {
+      await sbFetch('subscriptions?', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify({
+          user_id: sbSession.user.id,
+          country: _subCountryName,
+          country_code: _subCountryCode,
+          amount_paid: info ? info.amount : 'USD $15 / year',
+          payment_method: info ? info.method : 'other',
+          mobile_used: mobile,
+        }),
+      });
+      document.getElementById('subModal').classList.remove('open');
+      await doSaveTournament();
+    } catch (e) {
+      document.getElementById('subStatus').textContent = `❌ ${e.message}`;
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('saveCloudBtn').addEventListener('click', async () => {
+    if (!sbSession) return;
+    const btn = document.getElementById('saveCloudBtn');
+    btn.disabled = true;
+    setCloudStatus('Checking…', 'var(--muted)');
+    try {
+      const [hasSub, total] = await Promise.all([checkSubscription(), countUserTournaments()]);
+      if (!hasSub && total >= 3) {
+        btn.disabled = false;
+        setCloudStatus('Free limit reached — subscribe to save more.', 'var(--muted)');
+        openSubscriptionModal();
+        return;
+      }
+      await doSaveTournament();
+    } catch (e) {
+      setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
       btn.disabled = false;
     }
   });
