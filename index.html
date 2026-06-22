@@ -300,6 +300,7 @@
           <input type="text" id="sbKeyInput" placeholder="eyJhbGci..." />
         </div>
         <button class="secondary" id="saveSbConfig" style="align-self:flex-start;padding:7px 14px;font-size:13px">Save connection</button>
+        <div id="sbStatus" style="font-size:13px;margin-top:6px"></div>
         <details style="margin-top:4px">
           <summary style="cursor:pointer;font-size:12px;color:var(--muted)">How to set up (one-time SQL)</summary>
           <pre>-- Run in your Supabase SQL Editor:
@@ -1321,12 +1322,19 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   }
   syncSbInputs();
 
+  function setSbStatus(msg, color) {
+    const el = document.getElementById('sbStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = color || 'var(--muted)';
+  }
+
   document.getElementById('saveSbConfig').addEventListener('click', () => {
     const url = document.getElementById('sbUrlInput').value.trim();
     const key = document.getElementById('sbKeyInput').value.trim();
-    if (!url || !key) { setCloudStatus('⚠️ Please enter both URL and key.', '#facc15'); return; }
+    if (!url || !key) { setSbStatus('⚠️ Please enter both URL and key.', '#facc15'); return; }
     saveSbConfig(url, key);
-    setCloudStatus('✅ Connection saved.', 'var(--accent)');
+    setSbStatus('✅ Connection saved.', 'var(--accent)');
     fetchHistoryList();
   });
 
@@ -1447,6 +1455,9 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
     } catch (e) {
       area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
       document.getElementById('clearHistoryBtn').style.display = 'none';
+      if (e.message.includes('not configured')) {
+        document.getElementById('cloudConfigDetails').open = true;
+      }
     }
   });
 
