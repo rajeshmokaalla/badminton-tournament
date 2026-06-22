@@ -2629,15 +2629,11 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
     return cbMembers.filter(m => m.joined_date <= dateStr).map(m => ({ id: m.id, name: m.name }));
   }
 
-  // Does member (by name) have unsettled payments?
+  // Does member (by name) owe money in any booking (is a participant but not the payer)?
   function cbMemberHasPending(name) {
     return cbBookings.some(b => {
       const am = b.active_members || [];
-      if (!am.some(m => m.name === name)) return false;
-      if (b.paid_by === name) return false; // payer doesn't owe themselves
-      const share = am.length ? b.total_cost / am.length : 0;
-      const settled = (b.payments || {})[name] || 0;
-      return settled < share - 0.01;
+      return am.some(m => m.name === name) && b.paid_by !== name;
     });
   }
 
@@ -2732,9 +2728,7 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
       const pendingAmt = cbBookings.reduce((sum, b) => {
         const am = b.active_members || [];
         if (!am.some(m => m.name === member.name) || b.paid_by === member.name) return sum;
-        const share = am.length ? b.total_cost / am.length : 0;
-        const settled = (b.payments || {})[member.name] || 0;
-        return sum + Math.max(0, share - settled);
+        return sum + (am.length ? b.total_cost / am.length : 0);
       }, 0);
       alert(`⚠️ ${member.name} has ${cbFmt(pendingAmt)} in unsettled payments.\n\nPlease settle their pending amounts before removing them from the group.`);
       return;
