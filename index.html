@@ -145,6 +145,26 @@
   .points-setting-row input[type=number] { width: 64px; background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 6px 10px; border-radius: 8px; font-size: 14px; }
   .points-setting-row input[type=number]:focus { outline: 2px solid var(--accent); border-color: transparent; }
   .points-hint { font-size: 12px; color: var(--muted); font-style: italic; }
+
+  /* ── Cloud / History ── */
+  .cloud-config { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-top: 14px; }
+  .cloud-config summary { cursor: pointer; font-size: 14px; color: var(--muted); user-select: none; }
+  .cloud-config summary:hover { color: var(--text); }
+  .cloud-config-body { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .cloud-config-body label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .cloud-config-body input[type=text] { width: 100%; }
+  .cloud-config-body pre { background: #0f172a; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #7dd3fc; overflow-x: auto; margin: 0; line-height: 1.6; }
+  .save-cloud-btn { background: #0ea5e9; color: #fff; }
+  .save-cloud-btn:hover { background: #0284c7; }
+  .save-cloud-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .history-select { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 14px; }
+  .history-match { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .history-match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .history-score { display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .history-score-num { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .history-score-vs { font-size: 13px; color: var(--muted); }
+  .history-team-name { font-weight: 600; text-align: center; margin-bottom: 4px; }
+  .history-winner-name { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -243,7 +263,60 @@
     <div id="standingsArea"></div>
   </div>
 
-  <div class="footer-note">Saved automatically in your browser.</div>
+  <!-- Cloud Save Panel -->
+  <div class="panel" id="cloudPanel" style="display:none">
+    <div class="section-title-row">
+      <h2>5. Save to Cloud</h2>
+      <div class="actions">
+        <button class="save-cloud-btn" id="saveCloudBtn">☁️ Save Tournament</button>
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Tournament complete! Save the results to Supabase so you can review them later.</p>
+
+    <details class="cloud-config" id="cloudConfigDetails">
+      <summary>⚙️ Supabase connection settings</summary>
+      <div class="cloud-config-body">
+        <div>
+          <label for="sbUrlInput">Supabase Project URL</label>
+          <input type="text" id="sbUrlInput" placeholder="https://xxxx.supabase.co" />
+        </div>
+        <div>
+          <label for="sbKeyInput">Supabase Anon Key (public)</label>
+          <input type="text" id="sbKeyInput" placeholder="eyJhbGci..." />
+        </div>
+        <button class="secondary" id="saveSbConfig" style="align-self:flex-start;padding:7px 14px;font-size:13px">Save connection</button>
+        <details style="margin-top:4px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--muted)">How to set up (one-time SQL)</summary>
+          <pre>-- Run in your Supabase SQL Editor:
+create table if not exists tournaments (
+  id          uuid default gen_random_uuid() primary key,
+  tourney_date date not null,
+  created_at  timestamptz default now(),
+  data        jsonb not null
+);
+alter table tournaments enable row level security;
+create policy "public read"   on tournaments for select using (true);
+create policy "public insert" on tournaments for insert with check (true);</pre>
+        </details>
+      </div>
+    </details>
+    <div id="cloudStatus" style="font-size:13px;margin-top:10px"></div>
+  </div>
+
+  <!-- Past Tournaments Panel -->
+  <div class="panel" id="historyPanel">
+    <h2>📜 Past Tournaments</h2>
+    <div class="row" style="align-items:center;gap:10px">
+      <select class="history-select" id="historySelect">
+        <option value="">— select a tournament date —</option>
+      </select>
+      <button class="secondary" id="loadHistoryBtn" disabled>View</button>
+      <button class="secondary" id="refreshHistoryBtn" style="padding:9px 12px" title="Refresh list">↺</button>
+    </div>
+    <div id="historyArea" style="margin-top:16px"></div>
+  </div>
+
+  <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -849,6 +922,8 @@
     pointsInput.value = state.pointsPerGame || 21;
     pointsInput.disabled = state.rounds.length > 0; // lock once tournament started
     updatePointsHint();
+
+    if (typeof cloudRender === 'function') cloudRender();
   }
 
   function renderPlayers() {
@@ -1222,6 +1297,202 @@
 
   // initial render
   render();
+  cloudRender();
+
+  // ─────────────────────────────────────────────
+  // Cloud (Supabase) integration
+  // ─────────────────────────────────────────────
+  const SB_CONFIG_KEY = 'badminton-supabase-config';
+
+  function loadSbConfig() {
+    try { return JSON.parse(localStorage.getItem(SB_CONFIG_KEY)) || {}; } catch { return {}; }
+  }
+  function saveSbConfig(url, key) {
+    localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url: url.trim(), key: key.trim() }));
+  }
+
+  // Sync inputs from stored config
+  function syncSbInputs() {
+    const cfg = loadSbConfig();
+    document.getElementById('sbUrlInput').value = cfg.url || '';
+    document.getElementById('sbKeyInput').value = cfg.key || '';
+  }
+  syncSbInputs();
+
+  document.getElementById('saveSbConfig').addEventListener('click', () => {
+    const url = document.getElementById('sbUrlInput').value.trim();
+    const key = document.getElementById('sbKeyInput').value.trim();
+    if (!url || !key) { setCloudStatus('⚠️ Please enter both URL and key.', '#facc15'); return; }
+    saveSbConfig(url, key);
+    setCloudStatus('✅ Connection saved.', 'var(--accent)');
+    fetchHistoryList();
+  });
+
+  function setCloudStatus(msg, color) {
+    const el = document.getElementById('cloudStatus');
+    el.textContent = msg;
+    el.style.color = color || 'var(--muted)';
+  }
+
+  async function sbFetch(path, options = {}) {
+    const cfg = loadSbConfig();
+    if (!cfg.url || !cfg.key) throw new Error('Supabase not configured — expand ⚙️ settings above.');
+    const base = cfg.url.replace(/\/$/, '');
+    const res = await fetch(`${base}/rest/v1/${path}`, {
+      ...options,
+      headers: {
+        'apikey': cfg.key,
+        'Authorization': `Bearer ${cfg.key}`,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || '',
+        ...(options.headers || {}),
+      },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Supabase error ${res.status}: ${body}`);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  // Save full tournament to cloud
+  document.getElementById('saveCloudBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveCloudBtn');
+    btn.disabled = true;
+    setCloudStatus('Saving…', 'var(--muted)');
+    try {
+      const tourney_date = new Date().toISOString().slice(0, 10);
+      await sbFetch('tournaments?', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify({ tourney_date, data: state }),
+      });
+      setCloudStatus(`✅ Saved! Tournament from ${tourney_date} is in the cloud.`, 'var(--accent)');
+      fetchHistoryList();
+    } catch (e) {
+      setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
+      document.getElementById('cloudConfigDetails').open = true;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── History list ──
+  async function fetchHistoryList() {
+    const select = document.getElementById('historySelect');
+    const loadBtn = document.getElementById('loadHistoryBtn');
+    try {
+      const rows = await sbFetch('tournaments?select=id,tourney_date,created_at&order=tourney_date.desc,created_at.desc');
+      select.innerHTML = '<option value="">— select a tournament date —</option>';
+      if (!rows || rows.length === 0) {
+        select.innerHTML += '<option disabled>No saved tournaments yet</option>';
+        loadBtn.disabled = true;
+        return;
+      }
+      // Group by date, show count when multiple on same day
+      const dateCount = {};
+      rows.forEach(r => { dateCount[r.tourney_date] = (dateCount[r.tourney_date] || 0) + 1; });
+      const seen = {};
+      rows.forEach(r => {
+        seen[r.tourney_date] = (seen[r.tourney_date] || 0) + 1;
+        const count = dateCount[r.tourney_date];
+        const label = count > 1
+          ? `${r.tourney_date}  (game ${seen[r.tourney_date]} of ${count})`
+          : r.tourney_date;
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = label;
+        select.appendChild(opt);
+      });
+      loadBtn.disabled = false;
+    } catch (e) {
+      // silently fail if Supabase not yet configured
+    }
+  }
+
+  document.getElementById('refreshHistoryBtn').addEventListener('click', fetchHistoryList);
+
+  document.getElementById('loadHistoryBtn').addEventListener('click', async () => {
+    const id = document.getElementById('historySelect').value;
+    if (!id) return;
+    const area = document.getElementById('historyArea');
+    area.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const rows = await sbFetch(`tournaments?id=eq.${id}&select=tourney_date,created_at,data`);
+      if (!rows || rows.length === 0) { area.innerHTML = '<div class="empty">Not found.</div>'; return; }
+      renderHistory(rows[0]);
+    } catch (e) {
+      area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
+    }
+  });
+
+  function renderHistory(row) {
+    const area = document.getElementById('historyArea');
+    area.innerHTML = '';
+    const saved = row.data;
+    const savedAt = new Date(row.created_at).toLocaleString();
+
+    const meta = document.createElement('div');
+    meta.style.cssText = 'font-size:13px;color:var(--muted);margin-bottom:14px';
+    meta.textContent = `Tournament date: ${row.tourney_date} · Saved: ${savedAt}`;
+    area.appendChild(meta);
+
+    // Winner banner
+    const finalRound = (saved.rounds || []).slice().reverse().find(r => r.phase === 'final');
+    if (finalRound && finalRound.matches[0]?.winner) {
+      const winnerTeam = finalRound.matches[0][finalRound.matches[0].winner];
+      const banner = document.createElement('div');
+      banner.className = 'winner-banner';
+      banner.innerHTML = `🏆 Champions: <b>${teamLabel(winnerTeam)}</b>`;
+      area.appendChild(banner);
+    }
+
+    // All matches grouped by phase
+    (saved.rounds || []).forEach(round => {
+      const heading = document.createElement('h3');
+      heading.style.cssText = 'margin:16px 0 8px;font-size:15px;color:var(--text)';
+      heading.textContent = phaseLabel(round);
+      area.appendChild(heading);
+
+      round.matches.forEach(match => {
+        if (!match.winner) return; // skip unplayed
+        const game = match.games[0];
+        const aWon = match.winner === 'a';
+        const div = document.createElement('div');
+        div.className = 'history-match';
+        div.innerHTML = `
+          <div class="history-match-header">
+            <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">
+              ${match.label || ('Match')}
+            </span>
+            <span class="match-status done">✓ Done</span>
+          </div>
+          <div class="history-score">
+            <div>
+              <div class="history-team-name ${aWon ? 'history-winner-name' : ''}">${teamLabel(match.a)}</div>
+              <div class="history-score-num" style="${aWon ? 'color:var(--accent)' : ''}">${game.a}</div>
+            </div>
+            <div class="history-score-vs">vs</div>
+            <div>
+              <div class="history-team-name ${!aWon ? 'history-winner-name' : ''}">${teamLabel(match.b)}</div>
+              <div class="history-score-num" style="${!aWon ? 'color:var(--accent)' : ''}">${game.b}</div>
+            </div>
+          </div>`;
+        area.appendChild(div);
+      });
+    });
+  }
+
+  // Show/hide cloud save panel based on tournament completion
+  function cloudRender() {
+    const lastRound = state.rounds[state.rounds.length - 1];
+    const tournamentOver = lastRound && lastRound.phase === 'final' && lastRound.matches[0]?.winner;
+    document.getElementById('cloudPanel').style.display = tournamentOver ? '' : 'none';
+  }
+
+  // Trigger history list load on startup (will silently fail if not configured)
+  fetchHistoryList();
 
   // ─────────────────────────────────────────────
   // PWA
