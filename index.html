@@ -1297,6 +1297,7 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   }
 
   // initial render
+  let _wasOver = false;
   render();
   cloudRender();
 
@@ -1508,7 +1509,6 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   }
 
   // Show/hide cloud save panel based on tournament completion
-  let _wasOver = false;
   function cloudRender() {
     const lastRound = state.rounds[state.rounds.length - 1];
     const tournamentOver = !!(lastRound && lastRound.phase === 'final' && lastRound.matches[0]?.winner);
