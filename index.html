@@ -370,7 +370,7 @@
 <div class="sub-modal" id="subModal">
   <div class="sub-box">
     <h2>🔓 Unlock Unlimited Saves</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to keep saving results to the cloud.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.</p>
     <div id="subPaymentCard" class="sub-payment-card" style="display:none">
       <div class="sub-method-label" id="subMethodLabel"></div>
       <div class="sub-amount" id="subAmountLabel"></div>
@@ -397,7 +397,7 @@
     </div>
     <div id="subStatus" style="font-size:13px;margin:10px 0 6px;min-height:18px;color:var(--warn)"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-      <button id="subSubmitBtn" disabled style="flex:1">✓ Confirm &amp; Save Tournament</button>
+      <button id="subSubmitBtn" disabled style="flex:1">✓ Submit Subscription Request</button>
       <button class="secondary" id="subCancelBtn">Cancel</button>
     </div>
     <p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Yearly subscription. Access granted immediately after confirmation.</p>
@@ -1587,8 +1587,7 @@
       });
       document.getElementById('subModal').classList.remove('open');
       notifyAdminByEmail(subData).catch(() => {});
-      toast('Request submitted! Admin will approve within 24 hrs.');
-      await doSaveTournament();
+      toast('Request submitted! Admin will review and approve within 24 hrs.');
     } catch (e) {
       document.getElementById('subStatus').textContent = `❌ ${e.message}`;
       submitBtn.disabled = false;
@@ -1602,23 +1601,32 @@
     setCloudStatus('Checking…', 'var(--muted)');
     try {
       const total = await countUserTournaments();
-      if (total < 3) { await doSaveTournament(); return; }
 
-      const subStatus = await checkSubscriptionStatus();
-      if (subStatus === 'approved') { await doSaveTournament(); return; }
-
-      btn.disabled = false;
-      if (subStatus === 'pending') {
-        setCloudStatus('⏳ Your subscription request is pending approval. Saves resume once admin verifies your payment.', '#f59e0b');
+      if (total >= 3) {
+        // 4th+ save — requires approved subscription
+        const subStatus = await checkSubscriptionStatus();
+        if (subStatus === 'approved') { await doSaveTournament(); return; }
+        btn.disabled = false;
+        if (subStatus === 'pending') {
+          setCloudStatus('⏳ Your subscription request is pending approval. Saves resume once admin verifies your payment.', '#f59e0b');
+          return;
+        }
+        if (subStatus === 'rejected') {
+          setCloudStatus(`❌ Your subscription request was rejected. Contact ${ADMIN_EMAIL} for help.`, 'var(--warn)');
+          return;
+        }
+        setCloudStatus('', '');
+        openSubscriptionModal();
         return;
       }
-      if (subStatus === 'rejected') {
-        setCloudStatus(`❌ Your subscription request was rejected. Contact ${ADMIN_EMAIL} for help.`, 'var(--warn)');
-        return;
+
+      // 1st / 2nd / 3rd save — proceed freely
+      await doSaveTournament();
+
+      // After the 3rd save, show subscription modal proactively so user knows what comes next
+      if (total === 2) {
+        setTimeout(() => openSubscriptionModal(), 1500);
       }
-      // No subscription at all — show payment modal
-      setCloudStatus('', '');
-      openSubscriptionModal();
     } catch (e) {
       setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
       btn.disabled = false;
