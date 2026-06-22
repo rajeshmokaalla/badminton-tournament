@@ -424,25 +424,6 @@
       <h3 style="margin:0;font-size:16px">🏸 Manage Saved Tournaments</h3>
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Delete any saved tournament by date and tournament number.</p>
-    <details style="margin-bottom:14px">
-      <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none">⚙️ Supabase RLS setup required to see &amp; delete all users' data</summary>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:8px;font-size:11px;color:#94a3b8;font-family:monospace;white-space:pre-wrap;overflow-x:auto">-- Run this once in Supabase SQL Editor (Database → SQL Editor)
--- Allows admin to SELECT all tournaments
-DROP POLICY IF EXISTS "Admin select tournaments" ON tournaments;
-CREATE POLICY "Admin select tournaments" ON tournaments
-  FOR SELECT TO authenticated USING (
-    user_id = auth.uid()
-    OR (auth.jwt() -&gt;&gt; 'email') = 'rajesh.mokaalla@gmail.com'
-  );
-
--- Allows admin to DELETE any tournament
-DROP POLICY IF EXISTS "Admin delete tournaments" ON tournaments;
-CREATE POLICY "Admin delete tournaments" ON tournaments
-  FOR DELETE TO authenticated USING (
-    user_id = auth.uid()
-    OR (auth.jwt() -&gt;&gt; 'email') = 'rajesh.mokaalla@gmail.com'
-  );</div>
-    </details>
     <div id="adminTourneyList"><div class="empty">Loading…</div></div>
   </div>
 
@@ -2503,13 +2484,6 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
       });
 
       listEl.innerHTML = '';
-      const isOwnOnly = rows.every(r => r.user_id === sbSession?.user?.id);
-      if (isOwnOnly && rows.length > 0) {
-        const warn = document.createElement('div');
-        warn.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid var(--warn);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px';
-        warn.innerHTML = '⚠️ Only your own tournaments are visible. To see and delete all users\' data, run the admin RLS policies in your Supabase SQL Editor (see instructions above this panel).';
-        listEl.appendChild(warn);
-      }
 
       Object.keys(byDate).sort((a, b) => b.localeCompare(a)).forEach(date => {
         const group = byDate[date];
