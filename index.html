@@ -306,12 +306,11 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
   <!-- Past Tournaments Panel -->
   <div class="panel" id="historyPanel">
     <h2>📜 Past Tournaments</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Enter a date to load tournament results — works on any device.</p>
     <div class="row" style="align-items:center;gap:10px">
-      <select class="history-select" id="historySelect">
-        <option value="">— select a tournament date —</option>
-      </select>
-      <button class="secondary" id="loadHistoryBtn" disabled>View</button>
-      <button class="secondary" id="refreshHistoryBtn" style="padding:9px 12px" title="Refresh list">↺</button>
+      <input type="date" id="historyDateInput" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:9px 12px;border-radius:8px;font-size:14px;flex:0 0 auto" />
+      <button id="loadHistoryBtn">View</button>
+      <button class="secondary" id="clearHistoryBtn" style="display:none">✕ Clear</button>
     </div>
     <div id="historyArea" style="margin-top:16px"></div>
   </div>
@@ -1378,57 +1377,57 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
     }
   });
 
-  // ── History list ──
-  async function fetchHistoryList() {
-    const select = document.getElementById('historySelect');
-    const loadBtn = document.getElementById('loadHistoryBtn');
-    try {
-      const rows = await sbFetch('tournaments?select=id,tourney_date,created_at&order=tourney_date.desc,created_at.desc');
-      select.innerHTML = '<option value="">— select a tournament date —</option>';
-      if (!rows || rows.length === 0) {
-        select.innerHTML += '<option disabled>No saved tournaments yet</option>';
-        loadBtn.disabled = true;
-        return;
-      }
-      // Group by date, show count when multiple on same day
-      const dateCount = {};
-      rows.forEach(r => { dateCount[r.tourney_date] = (dateCount[r.tourney_date] || 0) + 1; });
-      const seen = {};
-      rows.forEach(r => {
-        seen[r.tourney_date] = (seen[r.tourney_date] || 0) + 1;
-        const count = dateCount[r.tourney_date];
-        const label = count > 1
-          ? `${r.tourney_date}  (game ${seen[r.tourney_date]} of ${count})`
-          : r.tourney_date;
-        const opt = document.createElement('option');
-        opt.value = r.id;
-        opt.textContent = label;
-        select.appendChild(opt);
-      });
-      loadBtn.disabled = false;
-    } catch (e) {
-      // silently fail if Supabase not yet configured
-    }
-  }
+  // ── History by date ──
+  // Pre-fill today's date as a convenience default
+  (function() {
+    const inp = document.getElementById('historyDateInput');
+    inp.value = new Date().toISOString().slice(0, 10);
+  })();
 
-  document.getElementById('refreshHistoryBtn').addEventListener('click', fetchHistoryList);
+  // Allow pressing Enter in the date input to load
+  document.getElementById('historyDateInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('loadHistoryBtn').click();
+  });
 
   document.getElementById('loadHistoryBtn').addEventListener('click', async () => {
-    const id = document.getElementById('historySelect').value;
-    if (!id) return;
+    const date = document.getElementById('historyDateInput').value;
+    if (!date) { toast('Please enter a date'); return; }
     const area = document.getElementById('historyArea');
     area.innerHTML = '<div class="empty">Loading…</div>';
+    document.getElementById('clearHistoryBtn').style.display = 'none';
     try {
-      const rows = await sbFetch(`tournaments?id=eq.${id}&select=tourney_date,created_at,data`);
-      if (!rows || rows.length === 0) { area.innerHTML = '<div class="empty">Not found.</div>'; return; }
-      renderHistory(rows[0]);
+      const rows = await sbFetch(`tournaments?tourney_date=eq.${date}&select=tourney_date,created_at,data&order=created_at.asc`);
+      if (!rows || rows.length === 0) {
+        area.innerHTML = `<div class="empty">No tournaments found for ${date}.</div>`;
+        return;
+      }
+      area.innerHTML = '';
+      rows.forEach((row, idx) => {
+        if (rows.length > 1) {
+          const label = document.createElement('h3');
+          label.style.cssText = 'margin:16px 0 8px;font-size:14px;color:var(--muted)';
+          label.textContent = `Game ${idx + 1} of ${rows.length}`;
+          area.appendChild(label);
+        }
+        renderHistory(row, area);
+      });
+      document.getElementById('clearHistoryBtn').style.display = '';
     } catch (e) {
       area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
+      document.getElementById('clearHistoryBtn').style.display = 'none';
     }
   });
 
-  function renderHistory(row) {
-    const area = document.getElementById('historyArea');
+  document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+    document.getElementById('historyArea').innerHTML = '';
+    document.getElementById('clearHistoryBtn').style.display = 'none';
+  });
+
+  // stub — no longer needed but kept so saveSbConfig flow still works
+  function fetchHistoryList() {}
+
+  function renderHistory(row, area) {
+    if (!area) area = document.getElementById('historyArea');
     area.innerHTML = '';
     const saved = row.data;
     const savedAt = new Date(row.created_at).toLocaleString();
