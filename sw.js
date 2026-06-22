@@ -1,4 +1,4 @@
-const CACHE = 'badminton-pwa-v1';
+const CACHE = 'badminton-pwa-v2';
 const ASSETS = [
   './',
   './index.html',
