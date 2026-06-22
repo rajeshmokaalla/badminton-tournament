@@ -391,22 +391,31 @@
     </div>
   </div>
 
+  <!-- Privacy Notice -->
+  <div class="panel" style="margin-top:8px">
+    <h2 style="margin-top:0;font-size:16px">🔐 Privacy Notice</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.8">
+      When you subscribe, we collect your <strong style="color:var(--text)">name, email address, country, and mobile number</strong>. This information is used solely to process your subscription and verify payment. It is visible only to the app administrator and stored securely in Supabase. We do not share your data with any third party. Your subscription is valid for <strong style="color:var(--text)">12 months</strong> from the date of approval and must be renewed annually. To request deletion of your data, contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a>.
+    </p>
+  </div>
+
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
 </div>
 
 <!-- Subscription Modal -->
 <div class="sub-modal" id="subModal">
   <div class="sub-box">
-    <h2>🔓 Unlock Unlimited Saves</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.</p>
+    <h2 id="subModalTitle">🔓 Unlock Unlimited Saves</h2>
+    <p id="subModalDesc" style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.</p>
     <div id="subPaymentCard" class="sub-payment-card" style="display:none">
       <div class="sub-method-label" id="subMethodLabel"></div>
       <div class="sub-amount" id="subAmountLabel"></div>
       <div class="sub-method-label">to mobile number:</div>
       <div class="sub-mobile-num" id="subMobileLabel"></div>
+      <div class="sub-method-label" style="margin-top:6px;font-size:12px">Annual subscription · 12 months from date of approval</div>
     </div>
     <div id="subOtherMsg" style="display:none;background:var(--panel-2);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;color:var(--muted)">
-      Subscription: <strong style="color:var(--text)">USD $15 / year</strong><br>
+      Subscription: <strong style="color:var(--text)">USD $15 / year (12 months)</strong><br>
       Contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a> to arrange payment, then fill in your details below.
     </div>
     <div style="margin-top:14px">
@@ -423,12 +432,15 @@
         <input type="text" id="subMobileInput" placeholder="e.g. 9849504494" style="width:100%;background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px" />
       </div>
     </div>
-    <div id="subStatus" style="font-size:13px;margin:10px 0 6px;min-height:18px;color:var(--warn)"></div>
+    <div style="background:var(--panel-2);border-radius:8px;padding:10px 12px;margin:12px 0 6px;font-size:12px;color:var(--muted);line-height:1.6">
+      💰 <strong style="color:var(--text)">Refund policy:</strong> If your request is rejected, a full refund will be sent to the same mobile number within 3 business days.
+    </div>
+    <div id="subStatus" style="font-size:13px;margin:6px 0;min-height:18px;color:var(--warn)"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
       <button id="subSubmitBtn" disabled style="flex:1">✓ Submit Subscription Request</button>
       <button class="secondary" id="subCancelBtn">Cancel</button>
     </div>
-    <p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Yearly subscription. Access granted immediately after confirmation.</p>
+    <p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Annual subscription · 12 months from date of admin approval.</p>
   </div>
 </div>
 
@@ -1511,15 +1523,28 @@
   }
 
   async function checkSubscription() {
-    return (await checkSubscriptionStatus()) === 'approved';
+    const s = await checkSubscriptionStatus();
+    return s === 'approved' || s === 'expiring_soon';
   }
 
   async function checkSubscriptionStatus() {
     if (!sbSession) return 'none';
     try {
-      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=status&order=created_at.desc&limit=1`);
+      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=status,valid_until&order=created_at.desc&limit=1`);
       if (!rows || rows.length === 0) return 'none';
-      return rows[0].status || 'pending';
+      const sub = rows[0];
+      if (sub.status === 'approved') {
+        _subValidUntil = sub.valid_until ? new Date(sub.valid_until) : null;
+        if (_subValidUntil) {
+          const now = new Date();
+          if (_subValidUntil < now) return 'expired';
+          const daysLeft = Math.ceil((_subValidUntil - now) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 30) return 'expiring_soon';
+        }
+        return 'approved';
+      }
+      _subValidUntil = null;
+      return sub.status || 'pending';
     } catch { return 'none'; }
   }
 
@@ -1537,13 +1562,15 @@
   function getSubInfo(code) {
     if (code === 'SG') return { amount: 'SGD $15 / year', method: 'PayNow', mobile: '91650536', label: 'Send via PayNow to:' };
     if (code === 'IN') return { amount: '₹1,000 / year', method: 'PhonePe', mobile: '9849504494', label: 'Send via PhonePe to:' };
-    return null;
+    return null; // other countries: use Contact Us details above
   }
+
+  let _subValidUntil = null;
 
   let _subCountryCode = 'OTHER';
   let _subCountryName = 'Unknown';
 
-  async function openSubscriptionModal() {
+  async function openSubscriptionModal(isRenewal = false) {
     const modal = document.getElementById('subModal');
     modal.classList.add('open');
     document.getElementById('subPaidCheck').checked = false;
@@ -1553,6 +1580,10 @@
     document.getElementById('subCountryInput').value = 'Detecting location…';
     document.getElementById('subPaymentCard').style.display = 'none';
     document.getElementById('subOtherMsg').style.display = 'none';
+    document.getElementById('subModalTitle').textContent = isRenewal ? '🔄 Renew Your Subscription' : '🔓 Unlock Unlimited Saves';
+    document.getElementById('subModalDesc').innerHTML = isRenewal
+      ? 'Your annual subscription has expired. Renew for another <strong style="color:var(--text)">12 months</strong> to continue saving tournaments to the cloud.'
+      : 'You\'ve used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.';
 
     const { code, name } = await detectCountry();
     _subCountryCode = code;
@@ -1631,9 +1662,9 @@
       const total = await countUserTournaments();
 
       if (total >= 3) {
-        // 4th+ save — requires approved subscription
+        // 4th+ save — requires active subscription
         const subStatus = await checkSubscriptionStatus();
-        if (subStatus === 'approved') { await doSaveTournament(); return; }
+        if (subStatus === 'approved' || subStatus === 'expiring_soon') { await doSaveTournament(); return; }
         btn.disabled = false;
         if (subStatus === 'pending') {
           setCloudStatus('⏳ Your subscription request is pending approval. Saves resume once admin verifies your payment.', '#f59e0b');
@@ -1643,8 +1674,13 @@
           setCloudStatus(`❌ Your subscription request was rejected. Contact ${ADMIN_EMAIL} for help.`, 'var(--warn)');
           return;
         }
+        if (subStatus === 'expired') {
+          setCloudStatus('⚠️ Your annual subscription has expired. Please renew to continue saving.', 'var(--warn)');
+          setTimeout(() => openSubscriptionModal(true), 1000);
+          return;
+        }
         setCloudStatus('', '');
-        openSubscriptionModal();
+        openSubscriptionModal(false);
         return;
       }
 
@@ -2044,7 +2080,7 @@
         <div>📧 <strong>${esc(row.user_email || '—')}</strong></div>
         <div>🌏 ${esc(row.country || '—')} &nbsp;·&nbsp; 💰 ${esc(row.amount_paid || '—')} via ${esc(row.payment_method || '—')}</div>
         <div>📱 Mobile used: <strong>${esc(row.mobile_used || '—')}</strong></div>
-        <div>🕐 ${date}</div>
+        <div>🕐 ${date}${row.valid_until ? ` &nbsp;·&nbsp; 📅 Valid until: <strong>${new Date(row.valid_until).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</strong>` : ''}</div>
       </div>
     `;
     if (status === 'pending') {
@@ -2060,9 +2096,12 @@
           await sbFetch(`subscriptions?id=eq.${row.id}`, {
             method: 'PATCH',
             prefer: 'return=minimal',
-            body: JSON.stringify({ status: 'approved' }),
+            body: JSON.stringify({
+              status: 'approved',
+              valid_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            }),
           });
-          toast('Subscription approved');
+          toast('Subscription approved — valid for 12 months');
           loadAdminSubscriptions();
         } catch (e) { toast('Error: ' + e.message); approveBtn.disabled = false; }
       });
@@ -2116,8 +2155,14 @@
     const el = document.getElementById('subStatusBadge');
     if (!el || !sbSession) return;
     const status = await checkSubscriptionStatus();
+    const fmtDate = d => d ? d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '';
     if (status === 'approved') {
-      el.innerHTML = '✅ <span style="color:var(--accent)">Subscribed</span>';
+      el.innerHTML = `✅ <span style="color:var(--accent)">Subscribed · valid until ${fmtDate(_subValidUntil)}</span>`;
+    } else if (status === 'expiring_soon') {
+      const days = Math.ceil((_subValidUntil - new Date()) / 86400000);
+      el.innerHTML = `⚠️ <span style="color:#f59e0b">Subscription expires in ${days} day${days !== 1 ? 's' : ''} (${fmtDate(_subValidUntil)}) — renew soon</span>`;
+    } else if (status === 'expired') {
+      el.innerHTML = `🔴 <span style="color:var(--warn)">Subscription expired ${fmtDate(_subValidUntil)} — renew to save again</span>`;
     } else if (status === 'pending') {
       el.innerHTML = '⏳ <span style="color:#f59e0b">Subscription pending approval</span>';
     } else if (status === 'rejected') {
