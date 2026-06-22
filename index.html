@@ -165,6 +165,37 @@
   .history-score-vs { font-size: 13px; color: var(--muted); }
   .history-team-name { font-weight: 600; text-align: center; margin-bottom: 4px; }
   .history-winner-name { color: var(--accent); }
+
+  /* ── Court Booking & Split ── */
+  .court-tabs { display: flex; gap: 0; background: var(--panel-2); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+  .court-tab { background: transparent; color: var(--muted); border-radius: 0; flex: 1; padding: 9px 14px; font-size: 13px; font-weight: 500; border: none; transition: background 0.15s, color 0.15s; cursor: pointer; }
+  .court-tab.active { background: var(--accent); color: #052e16; }
+  .court-tab:hover:not(.active) { background: #475569; color: var(--text); }
+  .member-card { background: var(--panel-2); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .member-card-info { flex: 1; min-width: 0; }
+  .member-card-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+  .member-card-meta { font-size: 12px; color: var(--muted); }
+  .member-balance { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .member-balance.owed { color: var(--warn); }
+  .member-balance.clear { color: var(--accent); }
+  .booking-card { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .booking-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .booking-card-title { font-weight: 600; font-size: 15px; }
+  .booking-card-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .booking-card-cost { font-size: 17px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .booking-member-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #334155; font-size: 13px; gap: 8px; flex-wrap: wrap; }
+  .booking-member-row:last-child { border-bottom: 0; }
+  .paid-badge { color: var(--accent); font-size: 11px; font-weight: 600; }
+  .pending-badge { color: var(--warn); font-size: 11px; font-weight: 600; }
+  .balance-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--panel-2); flex-wrap: wrap; gap: 8px; }
+  .balance-item:last-child { border-bottom: 0; }
+  .court-form { background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .court-form h3 { margin: 0 0 12px; font-size: 14px; color: var(--text); font-weight: 600; }
+  .inline-edit { background: #0f172a; border-radius: 8px; padding: 12px; margin-top: 10px; }
+  .court-date-input { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; flex: 0 0 auto; }
+  .court-num-input { background: var(--panel-2); border: 1px solid #475569; color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; width: 120px; }
+  .court-num-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .court-date-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 </style>
 </head>
 <body>
@@ -315,6 +346,92 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
         </details>
       </div>
     </details>
+  </div>
+
+  <!-- Court Booking & Split Panel (visible when Supabase is configured) -->
+  <div class="panel" id="courtPanel" style="display:none">
+    <div class="section-title-row">
+      <h2>🏟️ Court Booking &amp; Split</h2>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Manage court bookings and automatically split costs among active group members.</p>
+
+    <div class="court-tabs" id="courtTabs">
+      <button class="court-tab active" data-tab="members">👥 Members</button>
+      <button class="court-tab" data-tab="bookings">📅 Bookings</button>
+      <button class="court-tab" data-tab="balance">💰 Balance</button>
+    </div>
+
+    <!-- Members Tab -->
+    <div id="courtMembersTab">
+      <div class="court-form">
+        <h3>Add Member</h3>
+        <div class="row">
+          <input type="text" id="memberNameInput" placeholder="Member name" style="min-width:140px" />
+          <input type="date" id="memberJoinDate" class="court-date-input" />
+          <button id="addMemberBtn">+ Add</button>
+        </div>
+      </div>
+      <div id="membersList"><div class="empty">No members yet. Add members above.</div></div>
+    </div>
+
+    <!-- Bookings Tab -->
+    <div id="courtBookingsTab" style="display:none">
+      <div class="court-form">
+        <h3>Add Booking</h3>
+        <div class="row" style="flex-wrap:wrap">
+          <input type="date" id="bookingDate" class="court-date-input" />
+          <input type="text" id="bookingDesc" placeholder="e.g. Court A · 2hrs" style="flex:1;min-width:140px" />
+          <input type="number" id="bookingCost" class="court-num-input" placeholder="Total cost" min="0" step="0.01" />
+          <button id="addBookingBtn">+ Add</button>
+        </div>
+      </div>
+      <div id="bookingsList"><div class="empty">No bookings yet.</div></div>
+    </div>
+
+    <!-- Balance Tab -->
+    <div id="courtBalanceTab" style="display:none">
+      <div id="balanceSummary"></div>
+    </div>
+
+    <!-- SQL setup -->
+    <details style="margin-top:20px;background:var(--panel-2);border-radius:10px;padding:14px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted);user-select:none">🗄️ Database setup (one-time SQL)</summary>
+      <pre style="background:#0f172a;border-radius:8px;padding:10px 12px;font-size:11px;color:#7dd3fc;overflow-x:auto;margin:10px 0 0;line-height:1.6">-- Run in your Supabase SQL Editor:
+create table if not exists court_members (
+  id          uuid default gen_random_uuid() primary key,
+  name        text not null,
+  joined_date date not null,
+  created_at  timestamptz default now()
+);
+create table if not exists court_bookings (
+  id             uuid default gen_random_uuid() primary key,
+  booking_date   date not null,
+  description    text,
+  total_cost     numeric not null,
+  active_members jsonb not null default '[]',
+  payments       jsonb not null default '{}',
+  created_at     timestamptz default now()
+);
+alter table court_members enable row level security;
+alter table court_bookings enable row level security;
+create policy "public all" on court_members for all using (true) with check (true);
+create policy "public all" on court_bookings for all using (true) with check (true);</pre>
+    </details>
+  </div>
+
+  <!-- Contact Us -->
+  <div class="panel" id="contactPanel">
+    <h2>📬 Contact Us</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 8px">Have questions, feedback, or suggestions about the app?</p>
+    <p style="font-size:13px;margin:0">Reach us at <a href="mailto:rajeshkhanna.mokaalla@gmail.com" style="color:var(--accent);text-decoration:none">rajeshkhanna.mokaalla@gmail.com</a></p>
+  </div>
+
+  <!-- Privacy Notice -->
+  <div class="panel" id="privacyPanel">
+    <h2>🔒 Privacy Notice</h2>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;margin:0">
+      This app stores tournament and booking data locally in your browser. If you opt in to cloud sync, all data is stored in <strong style="color:var(--text)">your own Supabase project</strong> — we have no access to it. No personal data is collected, transmitted, or shared with third parties. You are in full control of your data.
+    </p>
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
@@ -1523,6 +1640,345 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
 
   // Trigger history list load on startup (will silently fail if not configured)
   fetchHistoryList();
+
+  // ─────────────────────────────────────────────
+  // Court Booking & Split
+  // ─────────────────────────────────────────────
+  let courtMembers = [];
+  let courtBookings = [];
+  let courtActiveTab = 'members';
+  let editingBookingId = null;
+
+  function checkCourtVisibility() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(SB_CONFIG_KEY)) || {};
+      document.getElementById('courtPanel').style.display = (cfg.url && cfg.key) ? '' : 'none';
+    } catch { document.getElementById('courtPanel').style.display = 'none'; }
+  }
+
+  // Re-check court panel visibility after Supabase config saved
+  document.getElementById('saveSbConfig').addEventListener('click', () => {
+    setTimeout(() => {
+      checkCourtVisibility();
+      const cfg = loadSbConfig();
+      if (cfg.url && cfg.key) { loadCourtMembers(); loadCourtBookings(); }
+    }, 200);
+  });
+
+  // Tab switching
+  document.getElementById('courtTabs').addEventListener('click', e => {
+    const tab = e.target.dataset.tab;
+    if (!tab) return;
+    courtActiveTab = tab;
+    document.querySelectorAll('.court-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('courtMembersTab').style.display = tab === 'members' ? '' : 'none';
+    document.getElementById('courtBookingsTab').style.display = tab === 'bookings' ? '' : 'none';
+    document.getElementById('courtBalanceTab').style.display = tab === 'balance' ? '' : 'none';
+    if (tab === 'balance') renderBalance();
+  });
+
+  // Default dates
+  (function() {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('memberJoinDate').value = today;
+    document.getElementById('bookingDate').value = today;
+  })();
+
+  // ── Members ──
+  document.getElementById('addMemberBtn').addEventListener('click', addCourtMember);
+  document.getElementById('memberNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') addCourtMember(); });
+
+  async function loadCourtMembers() {
+    try {
+      const data = await sbFetch('court_members?select=*&order=joined_date.asc,created_at.asc');
+      courtMembers = data || [];
+      renderMembers();
+    } catch { /* silently fail */ }
+  }
+
+  async function addCourtMember() {
+    const name = document.getElementById('memberNameInput').value.trim();
+    const joined_date = document.getElementById('memberJoinDate').value;
+    if (!name) { toast('Enter member name'); return; }
+    if (!joined_date) { toast('Select join date'); return; }
+    if (courtMembers.some(m => m.name.toLowerCase() === name.toLowerCase())) { toast('Member already exists'); return; }
+    try {
+      const result = await sbFetch('court_members?select=*', {
+        method: 'POST',
+        prefer: 'return=representation',
+        body: JSON.stringify({ name, joined_date }),
+      });
+      if (result && result[0]) courtMembers.push(result[0]);
+      courtMembers.sort((a, b) => a.joined_date.localeCompare(b.joined_date) || a.created_at.localeCompare(b.created_at));
+      document.getElementById('memberNameInput').value = '';
+      document.getElementById('memberJoinDate').value = new Date().toISOString().slice(0, 10);
+      renderMembers();
+      toast('Member added');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  async function deleteCourtMember(id) {
+    const member = courtMembers.find(m => m.id === id);
+    if (!member) return;
+    const pending = courtBookings.filter(b => {
+      const am = b.active_members || [];
+      if (!am.some(m => m.id === id)) return false;
+      const share = am.length > 0 ? b.total_cost / am.length : 0;
+      const paid = (b.payments || {})[id] || 0;
+      return paid < share - 0.001;
+    });
+    if (pending.length > 0) {
+      const pendingTotal = pending.reduce((s, b) => {
+        const am = b.active_members || [];
+        const share = am.length > 0 ? b.total_cost / am.length : 0;
+        const paid = (b.payments || {})[id] || 0;
+        return s + (share - paid);
+      }, 0);
+      alert(`⚠️ ${esc(member.name)} has ₹${pendingTotal.toFixed(2)} pending across ${pending.length} booking(s).\n\nPlease settle their payments first before removing this member.`);
+      return;
+    }
+    if (!confirm(`Remove ${member.name} from the group?`)) return;
+    try {
+      await sbFetch(`court_members?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+      courtMembers = courtMembers.filter(m => m.id !== id);
+      renderMembers();
+      toast('Member removed');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  function getMemberBalance(memberId) {
+    let owed = 0, paid = 0;
+    courtBookings.forEach(b => {
+      const am = b.active_members || [];
+      if (!am.some(m => m.id === memberId)) return;
+      const share = am.length > 0 ? b.total_cost / am.length : 0;
+      owed += share;
+      paid += (b.payments || {})[memberId] || 0;
+    });
+    return { owed, paid };
+  }
+
+  function renderMembers() {
+    const el = document.getElementById('membersList');
+    if (courtMembers.length === 0) { el.innerHTML = '<div class="empty">No members yet. Add members above.</div>'; return; }
+    el.innerHTML = '';
+    courtMembers.forEach(m => {
+      const { owed, paid } = getMemberBalance(m.id);
+      const pending = owed - paid;
+      const card = document.createElement('div');
+      card.className = 'member-card';
+      const balanceClass = pending > 0.01 ? 'owed' : 'clear';
+      const balanceText = pending > 0.01 ? `Pending: ₹${pending.toFixed(2)}` : '✓ Settled';
+      card.innerHTML = `
+        <div class="member-card-info">
+          <div class="member-card-name">${esc(m.name)}</div>
+          <div class="member-card-meta">Joined: ${m.joined_date}</div>
+        </div>
+        <div class="member-balance ${balanceClass}">${balanceText}</div>
+        <button class="danger" style="padding:6px 12px;font-size:12px;white-space:nowrap">Remove</button>
+      `;
+      card.querySelector('button').addEventListener('click', () => deleteCourtMember(m.id));
+      el.appendChild(card);
+    });
+  }
+
+  // ── Bookings ──
+  document.getElementById('addBookingBtn').addEventListener('click', addCourtBooking);
+
+  async function loadCourtBookings() {
+    try {
+      const data = await sbFetch('court_bookings?select=*&order=booking_date.desc,created_at.desc');
+      courtBookings = data || [];
+      renderBookings();
+    } catch { /* silently fail */ }
+  }
+
+  async function addCourtBooking() {
+    const date = document.getElementById('bookingDate').value;
+    const desc = document.getElementById('bookingDesc').value.trim();
+    const cost = parseFloat(document.getElementById('bookingCost').value);
+    if (!date) { toast('Select booking date'); return; }
+    if (!desc) { toast('Enter description'); return; }
+    if (isNaN(cost) || cost <= 0) { toast('Enter valid cost'); return; }
+    const activeMembers = courtMembers.filter(m => m.joined_date <= date).map(m => ({ id: m.id, name: m.name }));
+    if (activeMembers.length === 0) { toast('No members active on this date'); return; }
+    try {
+      const result = await sbFetch('court_bookings?select=*', {
+        method: 'POST',
+        prefer: 'return=representation',
+        body: JSON.stringify({ booking_date: date, description: desc, total_cost: cost, active_members: activeMembers, payments: {} }),
+      });
+      if (result && result[0]) courtBookings.unshift(result[0]);
+      document.getElementById('bookingDesc').value = '';
+      document.getElementById('bookingCost').value = '';
+      document.getElementById('bookingDate').value = new Date().toISOString().slice(0, 10);
+      renderBookings();
+      renderMembers();
+      toast(`Booking added · ₹${(cost / activeMembers.length).toFixed(2)} per person (${activeMembers.length} members)`);
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  async function deleteCourtBooking(id) {
+    if (!confirm('Delete this booking?')) return;
+    try {
+      await sbFetch(`court_bookings?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+      courtBookings = courtBookings.filter(b => b.id !== id);
+      renderBookings();
+      renderMembers();
+      toast('Booking deleted');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  async function saveEditBooking(id) {
+    const dateEl = document.getElementById(`edit-date-${id}`);
+    const descEl = document.getElementById(`edit-desc-${id}`);
+    const costEl = document.getElementById(`edit-cost-${id}`);
+    const date = dateEl ? dateEl.value : '';
+    const desc = descEl ? descEl.value.trim() : '';
+    const cost = costEl ? parseFloat(costEl.value) : NaN;
+    if (!date || !desc || isNaN(cost) || cost <= 0) { toast('Fill all fields correctly'); return; }
+    const activeMembers = courtMembers.filter(m => m.joined_date <= date).map(m => ({ id: m.id, name: m.name }));
+    if (activeMembers.length === 0) { toast('No members active on this date'); return; }
+    const booking = courtBookings.find(b => b.id === id);
+    const existingPayments = booking ? (booking.payments || {}) : {};
+    const newPayments = {};
+    activeMembers.forEach(m => { if (existingPayments[m.id]) newPayments[m.id] = existingPayments[m.id]; });
+    try {
+      const result = await sbFetch(`court_bookings?id=eq.${id}&select=*`, {
+        method: 'PATCH',
+        prefer: 'return=representation',
+        body: JSON.stringify({ booking_date: date, description: desc, total_cost: cost, active_members: activeMembers, payments: newPayments }),
+      });
+      if (result && result[0]) {
+        const idx = courtBookings.findIndex(b => b.id === id);
+        if (idx >= 0) courtBookings[idx] = result[0];
+      }
+      editingBookingId = null;
+      renderBookings();
+      renderMembers();
+      toast('Booking updated');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  async function togglePayment(bookingId, memberId, share) {
+    const booking = courtBookings.find(b => b.id === bookingId);
+    if (!booking) return;
+    const payments = { ...(booking.payments || {}) };
+    const currentlyPaid = (payments[memberId] || 0) >= share - 0.001;
+    payments[memberId] = currentlyPaid ? 0 : share;
+    try {
+      await sbFetch(`court_bookings?id=eq.${bookingId}`, {
+        method: 'PATCH',
+        prefer: 'return=minimal',
+        body: JSON.stringify({ payments }),
+      });
+      booking.payments = payments;
+      renderBookings();
+      renderMembers();
+      if (courtActiveTab === 'balance') renderBalance();
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  function renderBookings() {
+    const el = document.getElementById('bookingsList');
+    if (courtBookings.length === 0) { el.innerHTML = '<div class="empty">No bookings yet.</div>'; return; }
+    el.innerHTML = '';
+    courtBookings.forEach(b => {
+      const am = b.active_members || [];
+      const share = am.length > 0 ? b.total_cost / am.length : 0;
+      const payments = b.payments || {};
+      const isEditing = editingBookingId === b.id;
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      if (isEditing) {
+        card.innerHTML = `
+          <div class="booking-card-header" style="margin-bottom:0">
+            <div><div class="booking-card-title">${esc(b.description)}</div></div>
+          </div>
+          <div class="inline-edit">
+            <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              <input type="date" id="edit-date-${b.id}" value="${b.booking_date}" style="background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;flex:0 0 auto" />
+              <input type="text" id="edit-desc-${b.id}" value="${b.description.replace(/"/g,'&quot;')}" placeholder="Description" style="flex:1;min-width:120px;background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px" />
+              <input type="number" id="edit-cost-${b.id}" value="${b.total_cost}" placeholder="Cost" min="0" step="0.01" style="width:110px;background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px" />
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Active members will be recalculated based on the updated date.</div>
+            <div style="display:flex;gap:8px">
+              <button class="save-edit-btn" style="padding:7px 14px;font-size:12px">✔ Save Changes</button>
+              <button class="secondary cancel-edit-btn" style="padding:7px 14px;font-size:12px">Cancel</button>
+            </div>
+          </div>`;
+        card.querySelector('.save-edit-btn').addEventListener('click', () => saveEditBooking(b.id));
+        card.querySelector('.cancel-edit-btn').addEventListener('click', () => { editingBookingId = null; renderBookings(); });
+      } else {
+        const memberRows = am.map(m => {
+          const paid = (payments[m.id] || 0) >= share - 0.001;
+          return `<div class="booking-member-row">
+            <span>${esc(m.name)}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:var(--muted)">₹${share.toFixed(2)}</span>
+              <span class="${paid ? 'paid-badge' : 'pending-badge'}">${paid ? '✓ Paid' : 'Pending'}</span>
+              <button class="secondary pay-btn" data-mid="${m.id}" style="padding:3px 9px;font-size:11px;border-radius:6px">${paid ? 'Undo' : 'Mark Paid'}</button>
+            </div>
+          </div>`;
+        }).join('');
+        card.innerHTML = `
+          <div class="booking-card-header">
+            <div>
+              <div class="booking-card-title">${esc(b.description)}</div>
+              <div class="booking-card-date">${b.booking_date} · ${am.length} member${am.length !== 1 ? 's' : ''} · ₹${share.toFixed(2)}/person</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <span class="booking-card-cost">₹${parseFloat(b.total_cost).toFixed(2)}</span>
+              <button class="secondary edit-booking-btn" style="padding:5px 10px;font-size:11px;border-radius:6px" title="Edit">✏️</button>
+              <button class="danger delete-booking-btn" style="padding:5px 10px;font-size:11px;border-radius:6px" title="Delete">🗑</button>
+            </div>
+          </div>
+          <div>${memberRows}</div>`;
+        card.querySelector('.edit-booking-btn').addEventListener('click', () => { editingBookingId = b.id; renderBookings(); });
+        card.querySelector('.delete-booking-btn').addEventListener('click', () => deleteCourtBooking(b.id));
+        card.querySelectorAll('.pay-btn').forEach(btn => {
+          btn.addEventListener('click', () => togglePayment(b.id, btn.dataset.mid, share));
+        });
+      }
+      el.appendChild(card);
+    });
+  }
+
+  function renderBalance() {
+    const el = document.getElementById('balanceSummary');
+    if (courtMembers.length === 0) { el.innerHTML = '<div class="empty">No members yet. Add members in the Members tab.</div>'; return; }
+    el.innerHTML = '';
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size:13px;color:var(--muted);margin-bottom:14px';
+    header.textContent = 'Total owed vs. paid for each member across all bookings.';
+    el.appendChild(header);
+    courtMembers.forEach(m => {
+      const { owed, paid } = getMemberBalance(m.id);
+      const pending = owed - paid;
+      const row = document.createElement('div');
+      row.className = 'balance-item';
+      row.innerHTML = `
+        <div>
+          <div style="font-weight:600;font-size:15px">${esc(m.name)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Total owed: ₹${owed.toFixed(2)} · Paid: ₹${paid.toFixed(2)}</div>
+        </div>
+        <div style="font-weight:700;font-size:16px;${pending > 0.01 ? 'color:var(--warn)' : 'color:var(--accent)'}">
+          ${pending > 0.01 ? `−₹${pending.toFixed(2)}` : '✓ All settled'}
+        </div>`;
+      el.appendChild(row);
+    });
+  }
+
+  async function initCourt() {
+    checkCourtVisibility();
+    const cfg = loadSbConfig();
+    if (cfg.url && cfg.key) {
+      await loadCourtMembers();
+      await loadCourtBookings();
+    }
+  }
+
+  initCourt();
 
   // ─────────────────────────────────────────────
   // PWA
