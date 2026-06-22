@@ -157,6 +157,14 @@
   .history-score-num { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
   .history-score-vs { font-size: 13px; color: var(--muted); }
   .history-team-name { font-weight: 600; text-align: center; margin-bottom: 4px; }
+  /* ── Share / QR ── */
+  .share-wa-btn { background: #25d366; color: #fff; }
+  .share-wa-btn:hover { background: #128c7e; }
+  .qr-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; gap: 20px; padding: 24px; }
+  .qr-modal.open { display: flex; }
+  .qr-box { background: #fff; padding: 24px; border-radius: 16px; text-align: center; }
+  /* ── Player Stats ── */
+  .stats-sort-btn { font-size: 11px; padding: 3px 8px; border-radius: 6px; }
   .history-winner-name { color: var(--accent); }
 </style>
 </head>
@@ -277,12 +285,32 @@
       <input type="date" id="historyDateInput" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:9px 12px;border-radius:8px;font-size:14px;flex:0 0 auto" />
       <button id="loadHistoryBtn">View</button>
       <button class="secondary" id="clearHistoryBtn" style="display:none">✕ Clear</button>
+      <button class="share-wa-btn" id="shareWaBtn" style="display:none">WhatsApp</button>
+      <button class="secondary" id="showQrBtn" style="display:none">QR Code</button>
     </div>
     <div id="historyArea" style="margin-top:16px"></div>
   </div>
 
+  <!-- Player Stats Panel -->
+  <div class="panel" id="statsPanel">
+    <h2>📊 Player Stats</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Lifetime stats across all saved tournaments.</p>
+    <button id="loadStatsBtn">Load Stats</button>
+    <div id="statsArea" style="margin-top:16px"></div>
+  </div>
+
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
 </div>
+
+<!-- QR Code Modal -->
+<div class="qr-modal" id="qrModal">
+  <div class="qr-box">
+    <div id="qrCodeContainer"></div>
+  </div>
+  <p id="qrUrlText" style="color:#94a3b8;font-size:12px;max-width:300px;text-align:center;word-break:break-all;margin:0"></p>
+  <button id="closeQrBtn" style="background:#334155;color:#e2e8f0;padding:10px 28px">✕ Close</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -315,6 +343,8 @@
 
   // ── selected player in manual builder ──
   let selectedPoolPlayer = null;
+  // ── currently viewed history date (for share/QR) ──
+  let currentHistoryDate = null;
 
   function load() {
     try {
@@ -1338,10 +1368,12 @@
   });
 
   // ── History by date ──
-  // Pre-fill today's date as a convenience default
+  // Pre-fill from ?date= URL param (share links) or today; auto-load if param present
   (function() {
     const inp = document.getElementById('historyDateInput');
-    inp.value = new Date().toISOString().slice(0, 10);
+    const dateParam = new URLSearchParams(window.location.search).get('date');
+    inp.value = dateParam || new Date().toISOString().slice(0, 10);
+    if (dateParam) setTimeout(() => document.getElementById('loadHistoryBtn').click(), 300);
   })();
 
   // Allow pressing Enter in the date input to load
@@ -1381,19 +1413,153 @@
         area.appendChild(header);
         renderHistory(row, area);
       });
+      currentHistoryDate = date;
       document.getElementById('clearHistoryBtn').style.display = '';
+      document.getElementById('shareWaBtn').style.display = '';
+      document.getElementById('showQrBtn').style.display = '';
     } catch (e) {
       area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
+      currentHistoryDate = null;
       document.getElementById('clearHistoryBtn').style.display = 'none';
+      document.getElementById('shareWaBtn').style.display = 'none';
+      document.getElementById('showQrBtn').style.display = 'none';
     }
   });
 
   document.getElementById('clearHistoryBtn').addEventListener('click', () => {
     document.getElementById('historyArea').innerHTML = '';
+    currentHistoryDate = null;
     document.getElementById('clearHistoryBtn').style.display = 'none';
+    document.getElementById('shareWaBtn').style.display = 'none';
+    document.getElementById('showQrBtn').style.display = 'none';
   });
 
   function fetchHistoryList() {}
+
+  // ─────────────────────────────────────────────
+  // Share — WhatsApp + QR Code
+  // ─────────────────────────────────────────────
+  function getShareUrl(date) {
+    return window.location.origin + window.location.pathname + '?date=' + date;
+  }
+
+  document.getElementById('shareWaBtn').addEventListener('click', () => {
+    if (!currentHistoryDate) return;
+    const url = getShareUrl(currentHistoryDate);
+    const text = encodeURIComponent(`Badminton tournament results (${currentHistoryDate}):\n${url}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  });
+
+  document.getElementById('showQrBtn').addEventListener('click', () => {
+    if (!currentHistoryDate) return;
+    showQrModal(getShareUrl(currentHistoryDate));
+  });
+
+  document.getElementById('closeQrBtn').addEventListener('click', () => {
+    document.getElementById('qrModal').classList.remove('open');
+  });
+
+  document.getElementById('qrModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('qrModal'))
+      document.getElementById('qrModal').classList.remove('open');
+  });
+
+  function showQrModal(url) {
+    const container = document.getElementById('qrCodeContainer');
+    document.getElementById('qrUrlText').textContent = url;
+    container.innerHTML = '';
+    document.getElementById('qrModal').classList.add('open');
+
+    function makeQr() {
+      new QRCode(container, { text: url, width: 220, height: 220, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+    }
+
+    if (window.QRCode) {
+      makeQr();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      script.onload = makeQr;
+      script.onerror = () => { container.innerHTML = '<p style="color:#334155;padding:10px;font-size:13px">QR unavailable.<br>Use the link below.</p>'; };
+      document.head.appendChild(script);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Player Stats
+  // ─────────────────────────────────────────────
+  document.getElementById('loadStatsBtn').addEventListener('click', async () => {
+    const area = document.getElementById('statsArea');
+    const btn = document.getElementById('loadStatsBtn');
+    btn.disabled = true;
+    area.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const rows = await sbFetch('tournaments?select=tourney_date,data&order=tourney_date.asc');
+      if (!rows || rows.length === 0) {
+        area.innerHTML = '<div class="empty">No saved tournaments yet.</div>';
+        return;
+      }
+      const { stats, matchCount } = aggregatePlayerStats(rows);
+      renderPlayerStats(stats, matchCount, rows.length, area);
+    } catch (e) {
+      area.innerHTML = `<div class="empty" style="color:var(--warn)">${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function aggregatePlayerStats(rows) {
+    const map = {};
+    let matchCount = 0;
+    rows.forEach(row => {
+      (row.data.rounds || []).forEach(round => {
+        round.matches.forEach(match => {
+          if (!match.winner || !match.games || !match.games[0]) return;
+          matchCount++;
+          const game = match.games[0];
+          const aWon = match.winner === 'a';
+          const teamA = Array.isArray(match.a) ? match.a : [];
+          const teamB = Array.isArray(match.b) ? match.b : [];
+          teamA.forEach(p => {
+            if (!p) return;
+            if (!map[p]) map[p] = { name: p, m: 0, w: 0, l: 0, pf: 0, pa: 0 };
+            map[p].m++; aWon ? map[p].w++ : map[p].l++;
+            map[p].pf += game.a || 0; map[p].pa += game.b || 0;
+          });
+          teamB.forEach(p => {
+            if (!p) return;
+            if (!map[p]) map[p] = { name: p, m: 0, w: 0, l: 0, pf: 0, pa: 0 };
+            map[p].m++; !aWon ? map[p].w++ : map[p].l++;
+            map[p].pf += game.b || 0; map[p].pa += game.a || 0;
+          });
+        });
+      });
+    });
+    const stats = Object.values(map).sort((a, b) => b.w - a.w || (b.m && a.m ? b.w / b.m - a.w / a.m : 0));
+    return { stats, matchCount };
+  }
+
+  function renderPlayerStats(stats, matchCount, tournamentCount, area) {
+    area.innerHTML = '';
+    if (stats.length === 0) { area.innerHTML = '<div class="empty">No player data found.</div>'; return; }
+    const summary = document.createElement('p');
+    summary.style.cssText = 'font-size:12px;color:var(--muted);margin:0 0 10px';
+    summary.textContent = `${tournamentCount} tournament${tournamentCount !== 1 ? 's' : ''} · ${matchCount} matches · ${stats.length} players`;
+    area.appendChild(summary);
+    const table = document.createElement('table');
+    table.className = 'standings';
+    table.innerHTML = `<thead><tr><th>#</th><th>Player</th><th>M</th><th>W</th><th>L</th><th>Win%</th><th>PF</th><th>PA</th><th>+/-</th></tr></thead><tbody></tbody>`;
+    const tbody = table.querySelector('tbody');
+    stats.forEach((s, i) => {
+      const winPct = s.m > 0 ? Math.round(s.w / s.m * 100) : 0;
+      const diff = s.pf - s.pa;
+      const tr = document.createElement('tr');
+      if (i === 0 && s.w > 0) tr.classList.add('winner');
+      tr.innerHTML = `<td>${i + 1}</td><td>${esc(s.name)}</td><td>${s.m}</td><td>${s.w}</td><td>${s.l}</td><td>${winPct}%</td><td>${s.pf}</td><td>${s.pa}</td><td>${diff >= 0 ? '+' : ''}${diff}</td>`;
+      tbody.appendChild(tr);
+    });
+    area.appendChild(table);
+  }
 
   function renderHistory(row, area) {
     if (!area) area = document.getElementById('historyArea');
