@@ -263,7 +263,7 @@
     <div id="standingsArea"></div>
   </div>
 
-  <!-- Cloud Save Panel -->
+  <!-- Cloud Save Panel (visible only when tournament is complete) -->
   <div class="panel" id="cloudPanel" style="display:none">
     <div class="section-title-row">
       <h2>5. Save to Cloud</h2>
@@ -272,8 +272,22 @@
       </div>
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Tournament complete! Save the results to Supabase so you can review them later.</p>
+    <div id="cloudStatus" style="font-size:13px;margin-top:4px"></div>
+  </div>
 
-    <details class="cloud-config" id="cloudConfigDetails">
+  <!-- Past Tournaments Panel (always visible) -->
+  <div class="panel" id="historyPanel">
+    <h2>📜 Past Tournaments</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Enter a date to load tournament results — works on any device.</p>
+    <div class="row" style="align-items:center;gap:10px">
+      <input type="date" id="historyDateInput" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:9px 12px;border-radius:8px;font-size:14px;flex:0 0 auto" />
+      <button id="loadHistoryBtn">View</button>
+      <button class="secondary" id="clearHistoryBtn" style="display:none">✕ Clear</button>
+    </div>
+    <div id="historyArea" style="margin-top:16px"></div>
+
+    <!-- Supabase settings — always accessible so any device can connect -->
+    <details class="cloud-config" id="cloudConfigDetails" style="margin-top:20px">
       <summary>⚙️ Supabase connection settings</summary>
       <div class="cloud-config-body">
         <div>
@@ -300,19 +314,6 @@ create policy "public insert" on tournaments for insert with check (true);</pre>
         </details>
       </div>
     </details>
-    <div id="cloudStatus" style="font-size:13px;margin-top:10px"></div>
-  </div>
-
-  <!-- Past Tournaments Panel -->
-  <div class="panel" id="historyPanel">
-    <h2>📜 Past Tournaments</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Enter a date to load tournament results — works on any device.</p>
-    <div class="row" style="align-items:center;gap:10px">
-      <input type="date" id="historyDateInput" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:9px 12px;border-radius:8px;font-size:14px;flex:0 0 auto" />
-      <button id="loadHistoryBtn">View</button>
-      <button class="secondary" id="clearHistoryBtn" style="display:none">✕ Clear</button>
-    </div>
-    <div id="historyArea" style="margin-top:16px"></div>
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
