@@ -2977,7 +2977,7 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
           } else {
             const badge   = b.entry_type === 'court' ? 'court' : b.entry_type;
             const timeStr = b.time_from ? ` · ${b.time_from}${b.time_to ? ' – '+b.time_to : ''}` : '';
-            const splitStr = am.length ? `Split among: ${am.map(m => m.name).join(', ')} — ${cbFmt(share)} / person` : '';
+            const splitStr = am.length ? `Split among: ${am.map(m => esc(m.name)).join(', ')} — ${cbFmt(share)} / person` : '';
             div.innerHTML = `
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
                 <div class="cb-item-info" style="flex:1;min-width:0">
@@ -2988,7 +2988,7 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
                     Paid by <strong style="color:var(--text)">${esc(b.paid_by||'—')}</strong>
                     ${b.description ? ` · <em style="color:var(--muted)">${esc(b.description)}</em>` : ''}
                   </div>
-                  ${splitStr ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${esc(splitStr)}</div>` : ''}
+                  ${splitStr ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${splitStr}</div>` : ''}
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                   <div class="cb-item-amount">${cbFmt(b.total_cost)}</div>
