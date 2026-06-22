@@ -184,6 +184,15 @@
   .sub-check-row { display: flex; align-items: flex-start; gap: 10px; background: var(--panel-2); padding: 12px; border-radius: 8px; margin: 12px 0; cursor: pointer; }
   .sub-check-row input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
   .sub-check-row span { font-size: 13px; line-height: 1.5; }
+  /* ── Admin Panel ── */
+  .admin-sub-row { background: var(--panel-2); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .admin-sub-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .status-badge { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  .status-badge.pending { background: #facc15; color: #422006; }
+  .status-badge.approved { background: var(--accent); color: #052e16; }
+  .status-badge.rejected { background: var(--warn); color: #fff; }
+  .admin-sub-details { font-size: 13px; color: var(--muted); line-height: 1.9; }
+  .admin-sub-details strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -341,6 +350,16 @@
       </div>
       <div id="statsArea" style="margin-top:16px"></div>
     </div>
+  </div>
+
+  <!-- Admin Panel — only visible when logged in as admin -->
+  <div class="panel" id="adminPanel" style="display:none">
+    <div class="section-title-row">
+      <h2>🛡️ Admin — Subscriptions</h2>
+      <button class="secondary" id="refreshAdminBtn" style="font-size:13px;padding:7px 14px">🔄 Refresh</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Review and approve or reject subscription payment requests.</p>
+    <div id="adminSubList"><div class="empty">Loading…</div></div>
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
@@ -1383,6 +1402,8 @@
   // ─────────────────────────────────────────────
   const SB_URL = 'https://ltkasvztgekspcbhayaj.supabase.co';
   const SB_KEY = 'sb_publishable_TYlrkYkf-67K7uFwjiMjxw_Q4Mx2-is';
+  const ADMIN_EMAIL = 'rajesh.mokaalla@gmail.com';
+  const WEB3FORMS_KEY = ''; // Optional: get free key at web3forms.com for automatic email alerts
 
   function setCloudStatus(msg, color) {
     const el = document.getElementById('cloudStatus');
@@ -1462,7 +1483,7 @@
   async function checkSubscription() {
     if (!sbSession) return false;
     try {
-      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=id`);
+      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&status=eq.approved&select=id`);
       return rows && rows.length > 0;
     } catch { return false; }
   }
@@ -1541,19 +1562,25 @@
     document.getElementById('subStatus').textContent = 'Saving subscription…';
     const info = getSubInfo(_subCountryCode);
     try {
+      const subData = {
+        user_id: sbSession.user.id,
+        user_email: sbSession.user.email,
+        user_name: sbSession.user.user_metadata?.full_name || '',
+        country: _subCountryName,
+        country_code: _subCountryCode,
+        amount_paid: info ? info.amount : 'USD $15 / year',
+        payment_method: info ? info.method : 'other',
+        mobile_used: mobile,
+        status: 'pending',
+      };
       await sbFetch('subscriptions?', {
         method: 'POST',
         prefer: 'return=minimal',
-        body: JSON.stringify({
-          user_id: sbSession.user.id,
-          country: _subCountryName,
-          country_code: _subCountryCode,
-          amount_paid: info ? info.amount : 'USD $15 / year',
-          payment_method: info ? info.method : 'other',
-          mobile_used: mobile,
-        }),
+        body: JSON.stringify(subData),
       });
       document.getElementById('subModal').classList.remove('open');
+      notifyAdminByEmail(subData).catch(() => {});
+      toast('Request submitted! Admin will approve within 24 hrs.');
       await doSaveTournament();
     } catch (e) {
       document.getElementById('subStatus').textContent = `❌ ${e.message}`;
@@ -1688,6 +1715,9 @@
     document.getElementById('historyAuthArea').style.display = isAuth ? '' : 'none';
     document.getElementById('statsGuestMsg').style.display = isAuth ? 'none' : '';
     document.getElementById('statsAuthArea').style.display = isAuth ? '' : 'none';
+    const adminVisible = isAuth && isAdminUser();
+    document.getElementById('adminPanel').style.display = adminVisible ? '' : 'none';
+    if (adminVisible) loadAdminSubscriptions();
     cloudRender();
   }
 
@@ -1886,6 +1916,137 @@
       });
     });
   }
+
+  // ─────────────────────────────────────────────
+  // Admin Panel
+  // ─────────────────────────────────────────────
+  function isAdminUser() { return sbSession?.user?.email === ADMIN_EMAIL; }
+
+  async function notifyAdminByEmail(subData) {
+    if (WEB3FORMS_KEY) {
+      try {
+        await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_key: WEB3FORMS_KEY,
+            subject: `New subscription request — ${subData.user_name || subData.user_email}`,
+            from_name: 'Badminton Tournament App',
+            name: subData.user_name || 'Unknown',
+            email: subData.user_email || '',
+            country: `${subData.country} (${subData.country_code})`,
+            amount_paid: subData.amount_paid,
+            payment_method: subData.payment_method,
+            mobile_used: subData.mobile_used,
+            message: `Login to admin panel to approve/reject: https://rajeshmokaalla.github.io/badminton-tournament/`,
+          }),
+        });
+      } catch { /* non-critical */ }
+    } else {
+      // Fallback: open mail client with pre-filled content
+      const subject = encodeURIComponent(`New subscription — ${subData.user_name || subData.user_email}`);
+      const body = encodeURIComponent(
+        `New subscription request:\n\nUser: ${subData.user_name || 'Unknown'}\nEmail: ${subData.user_email}\nCountry: ${subData.country}\nAmount: ${subData.amount_paid}\nMethod: ${subData.payment_method}\nMobile used: ${subData.mobile_used}\n\nApprove/Reject: https://rajeshmokaalla.github.io/badminton-tournament/`
+      );
+      window.open(`mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`);
+    }
+  }
+
+  async function loadAdminSubscriptions() {
+    const listEl = document.getElementById('adminSubList');
+    listEl.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const rows = await sbFetch('subscriptions?select=*&order=created_at.desc');
+      if (!rows || rows.length === 0) {
+        listEl.innerHTML = '<div class="empty">No subscription requests yet.</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      const pending = rows.filter(r => !r.status || r.status === 'pending');
+      const reviewed = rows.filter(r => r.status && r.status !== 'pending');
+
+      if (pending.length > 0) {
+        const h = document.createElement('h3');
+        h.style.cssText = 'margin:0 0 10px;font-size:14px;color:var(--warn)';
+        h.textContent = `Pending approval (${pending.length})`;
+        listEl.appendChild(h);
+        pending.forEach(row => listEl.appendChild(buildAdminSubRow(row)));
+      }
+      if (reviewed.length > 0) {
+        const h = document.createElement('h3');
+        h.style.cssText = `margin:${pending.length ? '20px' : '0'} 0 10px;font-size:14px;color:var(--muted)`;
+        h.textContent = `Reviewed (${reviewed.length})`;
+        listEl.appendChild(h);
+        reviewed.forEach(row => listEl.appendChild(buildAdminSubRow(row)));
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty" style="color:var(--warn)">${esc(e.message)}</div>`;
+    }
+  }
+
+  function buildAdminSubRow(row) {
+    const div = document.createElement('div');
+    div.className = 'admin-sub-row';
+    const status = row.status || 'pending';
+    const date = new Date(row.created_at).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `
+      <div class="admin-sub-header">
+        <span style="font-weight:600;font-size:14px">${esc(row.user_name || row.user_email || row.user_id)}</span>
+        <span class="status-badge ${status}">${status}</span>
+      </div>
+      <div class="admin-sub-details">
+        <div>📧 <strong>${esc(row.user_email || '—')}</strong></div>
+        <div>🌏 ${esc(row.country || '—')} &nbsp;·&nbsp; 💰 ${esc(row.amount_paid || '—')} via ${esc(row.payment_method || '—')}</div>
+        <div>📱 Mobile used: <strong>${esc(row.mobile_used || '—')}</strong></div>
+        <div>🕐 ${date}</div>
+      </div>
+    `;
+    if (status === 'pending') {
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;flex-wrap:wrap';
+
+      const approveBtn = document.createElement('button');
+      approveBtn.textContent = '✓ Approve';
+      approveBtn.style.cssText = 'padding:7px 18px;font-size:13px';
+      approveBtn.addEventListener('click', async () => {
+        approveBtn.disabled = true;
+        try {
+          await sbFetch(`subscriptions?id=eq.${row.id}`, {
+            method: 'PATCH',
+            prefer: 'return=minimal',
+            body: JSON.stringify({ status: 'approved' }),
+          });
+          toast('Subscription approved');
+          loadAdminSubscriptions();
+        } catch (e) { toast('Error: ' + e.message); approveBtn.disabled = false; }
+      });
+
+      const rejectBtn = document.createElement('button');
+      rejectBtn.className = 'secondary';
+      rejectBtn.textContent = '✕ Reject';
+      rejectBtn.style.cssText = 'padding:7px 18px;font-size:13px';
+      rejectBtn.addEventListener('click', async () => {
+        if (!confirm('Reject this subscription request?')) return;
+        rejectBtn.disabled = true;
+        try {
+          await sbFetch(`subscriptions?id=eq.${row.id}`, {
+            method: 'PATCH',
+            prefer: 'return=minimal',
+            body: JSON.stringify({ status: 'rejected' }),
+          });
+          toast('Subscription rejected');
+          loadAdminSubscriptions();
+        } catch (e) { toast('Error: ' + e.message); rejectBtn.disabled = false; }
+      });
+
+      actions.appendChild(approveBtn);
+      actions.appendChild(rejectBtn);
+      div.appendChild(actions);
+    }
+    return div;
+  }
+
+  document.getElementById('refreshAdminBtn').addEventListener('click', loadAdminSubscriptions);
 
   // Show/hide cloud save panel based on tournament completion
   function cloudRender() {
