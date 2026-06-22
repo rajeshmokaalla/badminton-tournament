@@ -1734,7 +1734,7 @@ create policy "public all" on court_bookings for all using (true) with check (tr
         const paid = (b.payments || {})[id] || 0;
         return s + (share - paid);
       }, 0);
-      alert(`⚠️ ${esc(member.name)} has ₹${pendingTotal.toFixed(2)} pending across ${pending.length} booking(s).\n\nPlease settle their payments first before removing this member.`);
+      alert(`⚠️ ${member.name} has ₹${pendingTotal.toFixed(2)} pending across ${pending.length} booking(s).\n\nPlease settle their payments first before removing this member.`);
       return;
     }
     if (!confirm(`Remove ${member.name} from the group?`)) return;
@@ -1842,7 +1842,7 @@ create policy "public all" on court_bookings for all using (true) with check (tr
     const booking = courtBookings.find(b => b.id === id);
     const existingPayments = booking ? (booking.payments || {}) : {};
     const newPayments = {};
-    activeMembers.forEach(m => { if (existingPayments[m.id]) newPayments[m.id] = existingPayments[m.id]; });
+    activeMembers.forEach(m => { if (existingPayments[m.id] !== undefined) newPayments[m.id] = existingPayments[m.id]; });
     try {
       const result = await sbFetch(`court_bookings?id=eq.${id}&select=*`, {
         method: 'PATCH',
@@ -1898,7 +1898,7 @@ create policy "public all" on court_bookings for all using (true) with check (tr
           <div class="inline-edit">
             <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
               <input type="date" id="edit-date-${b.id}" value="${b.booking_date}" style="background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;flex:0 0 auto" />
-              <input type="text" id="edit-desc-${b.id}" value="${b.description.replace(/"/g,'&quot;')}" placeholder="Description" style="flex:1;min-width:120px;background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px" />
+              <input type="text" id="edit-desc-${b.id}" value="${esc(b.description)}" placeholder="Description" style="flex:1;min-width:120px;background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px" />
               <input type="number" id="edit-cost-${b.id}" value="${b.total_cost}" placeholder="Cost" min="0" step="0.01" style="width:110px;background:#1e293b;border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px" />
             </div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Active members will be recalculated based on the updated date.</div>
