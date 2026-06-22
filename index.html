@@ -482,7 +482,7 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
           <button id="cbAddBookingBtn">Add Booking</button>
         </div>
       </div>
-      <div id="cbBookingList"></div>
+      <div id="cbBookingSavedMsg" style="display:none;font-size:13px;color:#4ade80;margin-top:8px;font-weight:600">✅ Booking saved to cloud — view below in this month's entries.</div>
     </div>
 
     <!-- 3. Other Expenses -->
@@ -504,45 +504,25 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
           <button id="cbAddExpBtn">Add Expense</button>
         </div>
       </div>
-      <div id="cbExpList"></div>
+      <div id="cbExpSavedMsg" style="display:none;font-size:13px;color:#4ade80;margin-top:8px;font-weight:600">✅ Expense saved to cloud — view below in this month's entries.</div>
     </div>
 
-    <!-- 4. Split Summary -->
+    <!-- 4. View Entries by Month -->
+    <div class="cb-section">
+      <div class="cb-section-title">📋 View Entries by Month</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="month" id="cbViewMonth" class="cb-date-input" style="flex:0 0 auto" />
+        <button id="cbLoadMonthBtn">Load</button>
+        <span id="cbMonthLoadStatus" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="cbMonthEntries" style="margin-top:12px"></div>
+    </div>
+
+    <!-- 5. Split Summary -->
     <div class="cb-section" id="cbSplitSection" style="display:none">
-      <div class="cb-section-title">💰 Split Summary</div>
+      <div class="cb-section-title">💰 Split Summary <span id="cbSplitMonthLabel" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
       <div id="cbSplitArea"></div>
     </div>
-
-    <!-- SQL setup -->
-    <details style="margin-top:8px">
-      <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none">🗄️ First-time Supabase setup — create court tables</summary>
-      <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:8px;font-size:11px;color:#94a3b8;font-family:monospace;white-space:pre-wrap;overflow-x:auto">-- Run once in Supabase SQL Editor:
-create table if not exists court_members (
-  id          uuid default gen_random_uuid() primary key,
-  user_id     uuid not null,
-  name        text not null,
-  joined_date date not null,
-  created_at  timestamptz default now()
-);
-create table if not exists court_bookings (
-  id             uuid default gen_random_uuid() primary key,
-  user_id        uuid not null,
-  booking_date   date not null,
-  time_from      text,
-  time_to        text,
-  description    text,
-  entry_type     text not null default 'court',
-  total_cost     numeric not null,
-  paid_by        text,
-  active_members jsonb not null default '[]',
-  payments       jsonb not null default '{}',
-  created_at     timestamptz default now()
-);
-alter table court_members enable row level security;
-alter table court_bookings enable row level security;
-create policy "user court members" on court_members for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
-create policy "user court bookings" on court_bookings for all using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
-    </details>
   </div>
 
   <!-- Contact Us -->
@@ -2614,10 +2594,10 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
   // ─────────────────────────────────────────────
   // Court Booking & Split — Supabase-backed
   // ─────────────────────────────────────────────
-  let cbMembers  = [];   // [{id, user_id, name, joined_date, created_at}]
-  let cbBookings = [];   // [{id, user_id, booking_date, time_from, time_to, description,
-                         //   entry_type, total_cost, paid_by, active_members, payments, created_at}]
-  let cbEditingId = null; // booking being edited inline
+  let cbMembers     = [];   // [{id, user_id, name, joined_date, created_at}]
+  let cbBookings    = [];   // month-filtered [{id, …}]
+  let cbEditingId   = null; // booking being edited inline
+  let cbViewMonth   = '';   // YYYY-MM currently loaded
 
   function cbFmt(n) {
     return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2644,9 +2624,18 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
     cbMembers = rows || [];
   }
 
-  async function cbLoadBookings() {
+  async function cbLoadBookings(month) {
     if (!sbSession) return;
-    const rows = await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}&select=*&order=booking_date.desc,created_at.desc`);
+    const uid = sbSession.user.id;
+    let q = `court_bookings?user_id=eq.${uid}&select=*&order=booking_date.desc,created_at.desc`;
+    if (month) {
+      const [y, m] = month.split('-');
+      const from = `${y}-${m}-01`;
+      const last = new Date(+y, +m, 0).getDate();
+      const to   = `${y}-${m}-${String(last).padStart(2,'0')}`;
+      q += `&booking_date=gte.${from}&booking_date=lte.${to}`;
+    }
+    const rows = await sbFetch(q);
     cbBookings = rows || [];
   }
 
@@ -2696,19 +2685,35 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
     ['cbDate', 'cbExpDate'].forEach(id => { const el = document.getElementById(id); if (el && !el.value) el.value = cbTodayISO(); });
     const joinEl = document.getElementById('cbMemberJoinDate');
     if (joinEl && !joinEl.value) joinEl.value = cbTodayISO();
+    // Default month picker to current month
+    cbViewMonth = cbTodayISO().slice(0, 7);
+    const monthEl = document.getElementById('cbViewMonth');
+    if (monthEl) monthEl.value = cbViewMonth;
     try {
-      await Promise.all([cbLoadMembers(), cbLoadBookings()]);
+      await Promise.all([cbLoadMembers(), cbLoadBookings(cbViewMonth)]);
       renderCB();
     } catch (e) {
-      // Tables don't exist yet — open the SQL setup block and show a banner
-      const setupDetails = panel.querySelector('details');
-      if (setupDetails) setupDetails.open = true;
       const banner = document.createElement('div');
-      banner.style.cssText = 'background:#1e293b;border:1px solid var(--accent);border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:1.6';
-      banner.innerHTML = `<strong style="color:var(--accent)">⚠️ One-time setup required</strong><br>The court tables don't exist in your Supabase project yet.<br>Copy the SQL below and run it in your <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">Supabase SQL Editor</a>, then reload this page.`;
+      banner.style.cssText = 'background:#1e293b;border:1px solid #f87171;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:1.6';
+      banner.innerHTML = `<strong style="color:#f87171">⚠️ Could not load court data</strong><br>${esc(e.message)}`;
       panel.insertBefore(banner, panel.firstChild);
     }
   }
+
+  // ── Month picker load button ──
+  document.getElementById('cbLoadMonthBtn').addEventListener('click', async () => {
+    const month = document.getElementById('cbViewMonth').value;
+    if (!month) { toast('Select a month'); return; }
+    cbViewMonth = month;
+    cbEditingId = null;
+    const status = document.getElementById('cbMonthLoadStatus');
+    status.textContent = 'Loading…';
+    try {
+      await cbLoadBookings(month);
+      renderCB();
+      status.textContent = `${cbBookings.length} entr${cbBookings.length === 1 ? 'y' : 'ies'} loaded`;
+    } catch (e) { status.textContent = ''; toast('Error: ' + e.message); }
+  });
 
   // ── Members ──
   document.getElementById('cbMemberInput').addEventListener('keydown', e => { if (e.key === 'Enter') cbAddMember(); });
@@ -2747,6 +2752,14 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
     } catch (e) { toast('Error: ' + e.message); }
   }
 
+  function cbShowSavedMsg(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = '';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = 'none'; }, 5000);
+  }
+
   // ── Bookings ──
   document.getElementById('cbAddBookingBtn').addEventListener('click', async () => {
     if (!sbSession) return;
@@ -2766,8 +2779,13 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
         active_members: activeMembers, payments: {} });
       document.getElementById('cbAmount').value = '';
       document.getElementById('cbNote').value = '';
-      renderCB();
-      toast(`Booking added — split among ${activeMembers.length} member${activeMembers.length !== 1 ? 's' : ''}`);
+      cbShowSavedMsg('cbBookingSavedMsg');
+      // Reload month view if the new booking falls in the currently viewed month
+      const bookingMonth = date.slice(0, 7);
+      if (bookingMonth === cbViewMonth) {
+        await cbLoadBookings(cbViewMonth);
+        renderCB();
+      }
     } catch (e) { toast('Error saving booking: ' + e.message); }
   });
 
@@ -2788,18 +2806,23 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
         total_cost: amount, paid_by: paidBy, active_members: activeMembers, payments: {} });
       document.getElementById('cbExpAmount').value = '';
       document.getElementById('cbExpDesc').value = '';
-      renderCB();
-      toast('Expense added');
+      cbShowSavedMsg('cbExpSavedMsg');
+      const expMonth = date.slice(0, 7);
+      if (expMonth === cbViewMonth) {
+        await cbLoadBookings(cbViewMonth);
+        renderCB();
+      }
     } catch (e) { toast('Error saving expense: ' + e.message); }
   });
 
   // ── Delete booking/expense ──
   async function cbDeleteEntry(id) {
-    if (!confirm('Delete this entry?')) return;
+    if (!confirm('Delete this entry? This cannot be undone.')) return;
     try {
       await cbDeleteBookingRow(id);
+      await cbLoadBookings(cbViewMonth);
       renderCB();
-      toast('Entry deleted');
+      toast('✅ Entry deleted from cloud');
     } catch (e) { toast('Error: ' + e.message); }
   }
 
@@ -2807,27 +2830,26 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
   async function cbSaveEdit(id) {
     const b = cbBookings.find(x => x.id === id);
     if (!b) return;
-    const isExp = b.entry_type !== 'court';
-    const dateEl  = document.getElementById(`cbe-date-${id}`);
-    const amtEl   = document.getElementById(`cbe-amt-${id}`);
-    const paidEl  = document.getElementById(`cbe-paid-${id}`);
-    const noteEl  = document.getElementById(`cbe-note-${id}`);
-    const date    = dateEl?.value;
-    const amount  = parseFloat(amtEl?.value);
-    const paidBy  = paidEl?.value;
-    const note    = noteEl?.value.trim() || '';
-    if (!date || !paidBy || isNaN(amount) || amount <= 0) { toast('Fill all fields'); return; }
-    // Recalculate active members for new date; preserve existing payment records for still-active members
-    const newActive  = cbActiveMembersOn(date);
+    const date   = document.getElementById(`cbe-date-${id}`)?.value;
+    const amount = parseFloat(document.getElementById(`cbe-amt-${id}`)?.value);
+    const paidBy = document.getElementById(`cbe-paid-${id}`)?.value;
+    const note   = document.getElementById(`cbe-note-${id}`)?.value.trim() || '';
+    const timeFrom = document.getElementById(`cbe-tfrom-${id}`)?.value || '';
+    const timeTo   = document.getElementById(`cbe-tto-${id}`)?.value   || '';
+    if (!date || !paidBy || isNaN(amount) || amount <= 0) { toast('Fill all required fields'); return; }
+    const newActive   = cbActiveMembersOn(date);
     const oldPayments = b.payments || {};
     const newPayments = {};
     newActive.forEach(m => { if (oldPayments[m.name] !== undefined) newPayments[m.name] = oldPayments[m.name]; });
     try {
-      await cbUpdateBooking(id, { booking_date: date, total_cost: amount, paid_by: paidBy,
-        description: note, active_members: newActive, payments: newPayments });
+      const patch = { booking_date: date, total_cost: amount, paid_by: paidBy,
+        description: note, active_members: newActive, payments: newPayments };
+      if (b.entry_type === 'court') { patch.time_from = timeFrom; patch.time_to = timeTo; }
+      await cbUpdateBooking(id, patch);
       cbEditingId = null;
+      await cbLoadBookings(cbViewMonth);
       renderCB();
-      toast('Entry updated');
+      toast('✅ Entry updated in cloud');
     } catch (e) { toast('Error: ' + e.message); }
   }
 
@@ -2904,74 +2926,100 @@ create policy "user court bookings" on court_bookings for all using (auth.uid()=
 
     const typeIcon = { court: 'Court', shuttle: '🏸 Shuttle', snacks: '🍟 Snacks', misc: '📦 Misc' };
 
-    // Render entries (bookings + expenses together, separated by type)
-    function renderEntryList(entries, listId, entryType) {
-      const list = document.getElementById(listId);
-      list.innerHTML = '';
-      if (!entries.length) { list.innerHTML = '<div class="empty">No entries yet.</div>'; return; }
-      entries.forEach(b => {
-        const am = b.active_members || [];
-        const share = am.length ? b.total_cost / am.length : 0;
-        const isEditing = cbEditingId === b.id;
-        const div = document.createElement('div');
-        div.className = 'cb-item';
-        div.style.flexDirection = 'column';
-        div.style.alignItems = 'stretch';
+    // ── Month entries view ──
+    const monthEntriesEl = document.getElementById('cbMonthEntries');
+    monthEntriesEl.innerHTML = '';
 
-        if (isEditing) {
-          // Inline edit form
-          const memberOpts = memberNames.map(n => `<option value="${esc(n)}"${n===b.paid_by?' selected':''}>${esc(n)}</option>`).join('');
-          div.innerHTML = `
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-              <input type="date" id="cbe-date-${b.id}" value="${b.booking_date}" class="cb-date-input" style="flex:0 0 auto" />
-              <input type="number" id="cbe-amt-${b.id}" value="${b.total_cost}" class="cb-num-input" placeholder="Amount" min="0" step="0.01" style="width:110px" />
-              <select id="cbe-paid-${b.id}" class="cb-sel">${memberOpts}</select>
-              <input type="text" id="cbe-note-${b.id}" value="${esc(b.description||'')}" placeholder="Note" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;flex:1;min-width:100px" />
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Active members will be recalculated for the updated date.</div>
-            <div style="display:flex;gap:8px">
-              <button class="save-cb-edit" style="font-size:12px;padding:6px 14px">✔ Save</button>
-              <button class="secondary cancel-cb-edit" style="font-size:12px;padding:6px 14px">Cancel</button>
-            </div>`;
-          div.querySelector('.save-cb-edit').addEventListener('click', () => cbSaveEdit(b.id));
-          div.querySelector('.cancel-cb-edit').addEventListener('click', () => { cbEditingId = null; renderCB(); });
-        } else {
-          const badge = b.entry_type === 'court' ? 'court' : b.entry_type;
-          const timeStr = b.time_from ? ` · ${b.time_from}${b.time_to ? '–'+b.time_to : ''}` : '';
-          const memberStr = am.length ? `Split: ${am.map(m => m.name).join(', ')} (${cbFmt(share)}/person)` : '';
-          div.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div class="cb-item-info" style="flex:1;min-width:0">
-                <div class="cb-item-title"><span class="cb-type-badge ${badge}">${typeIcon[b.entry_type]||b.entry_type}</span> ${esc(b.booking_date)}${timeStr}</div>
-                <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(b.paid_by||'—')}</strong>${b.description ? ' · '+esc(b.description) : ''}</div>
-                ${am.length ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(memberStr)}</div>` : ''}
+    if (!cbBookings.length) {
+      monthEntriesEl.innerHTML = '<div class="empty">No entries for this month.</div>';
+    } else {
+      // Group by date
+      const byDate = {};
+      cbBookings.forEach(b => { (byDate[b.booking_date] = byDate[b.booking_date] || []).push(b); });
+      const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+      sortedDates.forEach(date => {
+        // Date header
+        const dateHeader = document.createElement('div');
+        dateHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid #334155';
+        const d = new Date(date + 'T00:00:00');
+        dateHeader.textContent = d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' });
+        monthEntriesEl.appendChild(dateHeader);
+
+        byDate[date].forEach(b => {
+          const am = b.active_members || [];
+          const share = am.length ? b.total_cost / am.length : 0;
+          const isEditing = cbEditingId === b.id;
+          const div = document.createElement('div');
+          div.className = 'cb-item';
+          div.style.cssText = 'flex-direction:column;align-items:stretch;margin-bottom:8px';
+
+          if (isEditing) {
+            const memberOpts = memberNames.map(n => `<option value="${esc(n)}"${n===b.paid_by?' selected':''}>${esc(n)}</option>`).join('');
+            const timeFromVal = b.time_from || '';
+            const timeToVal   = b.time_to   || '';
+            div.innerHTML = `
+              <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px">✏️ Editing entry</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <input type="date" id="cbe-date-${b.id}" value="${b.booking_date}" class="cb-date-input" />
+                ${b.entry_type === 'court' ? `<input type="time" id="cbe-tfrom-${b.id}" value="${timeFromVal}" class="cb-date-input" title="From" /><span style="align-self:center;color:var(--muted)">–</span><input type="time" id="cbe-tto-${b.id}" value="${timeToVal}" class="cb-date-input" title="To" />` : ''}
+                <input type="number" id="cbe-amt-${b.id}" value="${b.total_cost}" class="cb-num-input" placeholder="Amount" min="0" step="0.01" style="width:110px" />
+                <select id="cbe-paid-${b.id}" class="cb-sel">${memberOpts}</select>
+                <input type="text" id="cbe-note-${b.id}" value="${esc(b.description||'')}" placeholder="Note / description" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;flex:1;min-width:120px" />
               </div>
-              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-                <div class="cb-item-amount">${cbFmt(b.total_cost)}</div>
-                <button class="secondary edit-cb-btn" style="padding:4px 8px;font-size:11px" title="Edit">✏️</button>
-                <button class="secondary del-cb-btn" style="padding:4px 8px;font-size:11px;color:var(--warn)" title="Delete">🗑</button>
-              </div>
-            </div>`;
-          div.querySelector('.edit-cb-btn').addEventListener('click', () => { cbEditingId = b.id; renderCB(); });
-          div.querySelector('.del-cb-btn').addEventListener('click', () => cbDeleteEntry(b.id));
-        }
-        list.appendChild(div);
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Active members will be recalculated for the updated date.</div>
+              <div style="display:flex;gap:8px">
+                <button class="save-cb-edit" style="font-size:12px;padding:6px 16px">✔ Save to cloud</button>
+                <button class="secondary cancel-cb-edit" style="font-size:12px;padding:6px 14px">Cancel</button>
+              </div>`;
+            div.querySelector('.save-cb-edit').addEventListener('click', () => cbSaveEdit(b.id));
+            div.querySelector('.cancel-cb-edit').addEventListener('click', () => { cbEditingId = null; renderCB(); });
+          } else {
+            const badge   = b.entry_type === 'court' ? 'court' : b.entry_type;
+            const timeStr = b.time_from ? ` · ${b.time_from}${b.time_to ? ' – '+b.time_to : ''}` : '';
+            const splitStr = am.length ? `Split among: ${am.map(m => esc(m.name)).join(', ')} — ${cbFmt(share)} / person` : '';
+            div.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                <div class="cb-item-info" style="flex:1;min-width:0">
+                  <div class="cb-item-title">
+                    <span class="cb-type-badge ${badge}">${typeIcon[b.entry_type]||b.entry_type}</span>${timeStr}
+                  </div>
+                  <div class="cb-item-sub" style="margin-top:4px">
+                    Paid by <strong style="color:var(--text)">${esc(b.paid_by||'—')}</strong>
+                    ${b.description ? ` · <em style="color:var(--muted)">${esc(b.description)}</em>` : ''}
+                  </div>
+                  ${splitStr ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${splitStr}</div>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                  <div class="cb-item-amount">${cbFmt(b.total_cost)}</div>
+                  <button class="secondary edit-cb-btn" style="padding:5px 9px;font-size:13px" title="Edit">✏️</button>
+                  <button class="secondary del-cb-btn" style="padding:5px 9px;font-size:13px;color:var(--warn)" title="Delete">🗑</button>
+                </div>
+              </div>`;
+            div.querySelector('.edit-cb-btn').addEventListener('click', () => { cbEditingId = b.id; renderCB(); });
+            div.querySelector('.del-cb-btn').addEventListener('click', () => cbDeleteEntry(b.id));
+          }
+          monthEntriesEl.appendChild(div);
+        });
       });
     }
 
-    const courtEntries = cbBookings.filter(b => b.entry_type === 'court')
-      .sort((a,b) => b.booking_date.localeCompare(a.booking_date) || (b.time_from||'').localeCompare(a.time_from||''));
-    const expEntries = cbBookings.filter(b => b.entry_type !== 'court')
-      .sort((a,b) => b.booking_date.localeCompare(a.booking_date));
-
-    renderEntryList(courtEntries, 'cbBookingList', 'court');
-    renderEntryList(expEntries, 'cbExpList', 'expense');
+    // Update month load status count
+    const status = document.getElementById('cbMonthLoadStatus');
+    if (status && cbBookings.length) {
+      status.textContent = `${cbBookings.length} entr${cbBookings.length === 1 ? 'y' : 'ies'} loaded`;
+    }
 
     // Split summary
     const splitSection = document.getElementById('cbSplitSection');
     const splitArea    = document.getElementById('cbSplitArea');
+    const splitLabel   = document.getElementById('cbSplitMonthLabel');
     if (!cbMembers.length || !cbBookings.length) { splitSection.style.display = 'none'; return; }
     splitSection.style.display = '';
+    if (splitLabel && cbViewMonth) {
+      const [y, m] = cbViewMonth.split('-');
+      splitLabel.textContent = `— ${new Date(+y, +m-1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`;
+    }
     splitArea.innerHTML = '';
     const split = computeCBSplit();
     if (!split) return;
