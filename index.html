@@ -446,59 +446,23 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     <div id="adminTourneyList"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- Contact Us -->
-  <div class="panel" style="margin-top:8px">
-    <h2 style="margin-top:0">📬 Contact Us</h2>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:20px">✉️</span>
-        <div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Email</div>
-          <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:14px">rajesh.mokaalla@gmail.com</a>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:20px">🇮🇳</span>
-        <div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">India · PhonePe</div>
-          <a href="tel:+919849504494" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+91 98495 04494</a>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:20px">🇸🇬</span>
-        <div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Singapore · PayNow</div>
-          <a href="tel:+6591650536" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+65 9165 0536</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Privacy Notice -->
-  <div class="panel" style="margin-top:8px">
-    <h2 style="margin-top:0;font-size:16px">🔐 Privacy Notice</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.8">
-      When you subscribe, we collect your <strong style="color:var(--text)">name, email address, country, and mobile number</strong>. This information is used solely to process your subscription and verify payment. It is visible only to the app administrator and stored securely in Supabase. We do not share your data with any third party. Your subscription is valid for <strong style="color:var(--text)">12 months</strong> from the date of approval and must be renewed annually. To request deletion of your data, contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a>.
-    </p>
-  </div>
-
-  <!-- Court Booking & Split Module (auth-gated) -->
+  <!-- Court Booking & Split Module (auth-gated, cloud-synced) -->
   <div class="panel" id="courtPanel" style="display:none">
     <div class="section-title-row" style="margin-bottom:4px">
       <h2 style="margin:0">🏟️ Court Booking &amp; Split</h2>
-      <button class="secondary" id="cbClearAllBtn" style="font-size:12px;padding:6px 10px">🗑 Clear Entries</button>
     </div>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 20px">Track court bookings and split all costs among your group.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 20px">Track court bookings and split all costs among your group. All data is saved to the cloud.</p>
 
     <!-- 1. Group Members -->
     <div class="cb-section">
       <div class="cb-section-title">👥 Group Members</div>
-      <div class="row">
-        <input type="text" id="cbMemberInput" placeholder="Member name" />
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="cbMemberInput" placeholder="Member name" style="min-width:140px" />
+        <input type="date" id="cbMemberJoinDate" class="cb-date-input" title="Join date — only splits bookings from this date onward" />
         <button id="cbAddMemberBtn">Add</button>
       </div>
       <div id="cbMemberList" class="player-list" style="margin-top:10px"></div>
-      <div id="cbMemberEmpty" class="empty" style="display:none">No members yet — add your group to enable split tracking.</div>
+      <div id="cbMemberEmpty" class="empty">No members yet — add your group to enable split tracking.</div>
     </div>
 
     <!-- 2. Add Court Booking -->
@@ -548,6 +512,73 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
       <div class="cb-section-title">💰 Split Summary</div>
       <div id="cbSplitArea"></div>
     </div>
+
+    <!-- SQL setup -->
+    <details style="margin-top:8px">
+      <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none">🗄️ First-time Supabase setup — create court tables</summary>
+      <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:8px;font-size:11px;color:#94a3b8;font-family:monospace;white-space:pre-wrap;overflow-x:auto">-- Run once in Supabase SQL Editor:
+create table if not exists court_members (
+  id          uuid default gen_random_uuid() primary key,
+  user_id     uuid not null,
+  name        text not null,
+  joined_date date not null,
+  created_at  timestamptz default now()
+);
+create table if not exists court_bookings (
+  id             uuid default gen_random_uuid() primary key,
+  user_id        uuid not null,
+  booking_date   date not null,
+  time_from      text,
+  time_to        text,
+  description    text,
+  entry_type     text not null default 'court',
+  total_cost     numeric not null,
+  paid_by        text,
+  active_members jsonb not null default '[]',
+  payments       jsonb not null default '{}',
+  created_at     timestamptz default now()
+);
+alter table court_members enable row level security;
+alter table court_bookings enable row level security;
+create policy "user court members" on court_members for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
+create policy "user court bookings" on court_bookings for all using (auth.uid()=user_id) with check (auth.uid()=user_id);</div>
+    </details>
+  </div>
+
+  <!-- Contact Us -->
+  <div class="panel" style="margin-top:8px">
+    <h2 style="margin-top:0">📬 Contact Us</h2>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">✉️</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Email</div>
+          <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:14px">rajesh.mokaalla@gmail.com</a>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">🇮🇳</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">India · PhonePe</div>
+          <a href="tel:+919849504494" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+91 98495 04494</a>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">🇸🇬</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Singapore · PayNow</div>
+          <a href="tel:+6591650536" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+65 9165 0536</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Notice -->
+  <div class="panel" style="margin-top:8px">
+    <h2 style="margin-top:0;font-size:16px">🔐 Privacy Notice</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.8">
+      When you subscribe, we collect your <strong style="color:var(--text)">name, email address, country, and mobile number</strong>. This information is used solely to process your subscription and verify payment. It is visible only to the app administrator and stored securely in Supabase. We do not share your data with any third party. Your subscription is valid for <strong style="color:var(--text)">12 months</strong> from the date of approval and must be renewed annually. To request deletion of your data, contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a>.
+    </p>
   </div>
 
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
@@ -1241,8 +1272,17 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     if (isNaN(a) || isNaN(b) || a < 0 || b < 0) { showError('Enter valid scores for both teams'); return; }
     if (a === b) { showError('Scores cannot be equal — there must be a winner'); return; }
     const pts = getPointsPerGame();
-    if (a >= pts && b >= pts) { showError(`Winning score must be exactly ${pts} or more, but not both teams`); return; }
-    if (Math.max(a, b) < pts) { showError(`Winning score must be at least ${pts}`); return; }
+    const hi = Math.max(a, b), lo = Math.min(a, b);
+    const cap = pts + 9;
+    if (hi < pts) { showError(`Winning score must be at least ${pts}`); return; }
+    // Deuce kicks in when both sides reach pts−1
+    if (lo >= pts - 1) {
+      if (hi - lo !== 2) { showError(`Deuce: winner must lead by exactly 2 (e.g. ${pts+1}–${pts-1})`); return; }
+      if (hi > cap) { showError(`Score is capped at ${cap}–${cap-1} under deuce rules`); return; }
+    } else {
+      // Normal win — the winner cannot score past pts without triggering deuce
+      if (hi !== pts) { showError(`Winning score must be exactly ${pts} for a normal win (no deuce)`); return; }
+    }
     pushHistory();
     const game = match.games[0];
     game.a = a;
@@ -1884,10 +1924,10 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
       // Set country-specific mobile placeholder and maxlength
       const mobileInput = document.getElementById('subMobileInput');
       if (code === 'SG') {
-        mobileInput.placeholder = '9-digit Singapore number (e.g. 91234567)';
+        mobileInput.placeholder = '9-digit Singapore mobile (e.g. 912345678)';
         mobileInput.maxLength = 9;
       } else if (code === 'IN') {
-        mobileInput.placeholder = '10-digit India number (e.g. 9849504494)';
+        mobileInput.placeholder = '10-digit India mobile (e.g. 9849504494)';
         mobileInput.maxLength = 10;
       } else {
         mobileInput.placeholder = 'Mobile number used for payment';
@@ -2072,7 +2112,10 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
   function signIn() {
     sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + window.location.pathname }
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: { prompt: 'select_account' },
+      }
     });
   }
 
@@ -2321,7 +2364,7 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
   // ─────────────────────────────────────────────
   // Admin Panel
   // ─────────────────────────────────────────────
-  function isAdminUser() { return sbSession?.user?.email === ADMIN_EMAIL; }
+  function isAdminUser() { return sbSession?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase(); }
 
   async function notifyAdminByEmail(subData) {
     if (!WEB3FORMS_KEY) return; // admin uses the in-app panel; email is optional
@@ -2569,43 +2612,95 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
   }
 
   // ─────────────────────────────────────────────
-  // Court Booking & Split Module
+  // Court Booking & Split — Supabase-backed
   // ─────────────────────────────────────────────
-  let cbState = null;
-
-  function cbStorageKey() {
-    return `badminton-cb-${sbSession?.user?.id || 'guest'}-v1`;
-  }
-
-  function cbLoad() {
-    try {
-      const raw = localStorage.getItem(cbStorageKey());
-      return { members: [], bookings: [], expenses: [], ...(raw ? JSON.parse(raw) : {}) };
-    } catch { return { members: [], bookings: [], expenses: [] }; }
-  }
-
-  function cbSave() {
-    try { localStorage.setItem(cbStorageKey(), JSON.stringify(cbState)); } catch {}
-  }
-
-  function cbUid() { return Math.random().toString(36).slice(2, 10); }
+  let cbMembers  = [];   // [{id, user_id, name, joined_date, created_at}]
+  let cbBookings = [];   // [{id, user_id, booking_date, time_from, time_to, description,
+                         //   entry_type, total_cost, paid_by, active_members, payments, created_at}]
+  let cbEditingId = null; // booking being edited inline
 
   function cbFmt(n) {
     return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-
   function cbTodayISO() { return new Date().toISOString().slice(0, 10); }
 
-  function initCourtModule() {
-    const panel = document.getElementById('courtPanel');
-    if (!sbSession) { panel.style.display = 'none'; cbState = null; return; }
-    cbState = cbLoad();
-    panel.style.display = '';
-    // Default date inputs to today
-    ['cbDate', 'cbExpDate'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el.value) el.value = cbTodayISO();
+  // active members for a given date (joined_date <= date)
+  function cbActiveMembersOn(dateStr) {
+    return cbMembers.filter(m => m.joined_date <= dateStr).map(m => ({ id: m.id, name: m.name }));
+  }
+
+  // Does member (by name) owe money in any booking (is a participant but not the payer)?
+  function cbMemberHasPending(name) {
+    return cbBookings.some(b => {
+      const am = b.active_members || [];
+      return am.some(m => m.name === name) && b.paid_by !== name;
     });
+  }
+
+  // ── Supabase CRUD ──
+  async function cbLoadMembers() {
+    if (!sbSession) return;
+    try {
+      const rows = await sbFetch(`court_members?user_id=eq.${sbSession.user.id}&select=*&order=joined_date.asc,created_at.asc`);
+      cbMembers = rows || [];
+    } catch { cbMembers = []; }
+  }
+
+  async function cbLoadBookings() {
+    if (!sbSession) return;
+    try {
+      const rows = await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}&select=*&order=booking_date.desc,created_at.desc`);
+      cbBookings = rows || [];
+    } catch { cbBookings = []; }
+  }
+
+  async function cbSaveMember(name, joinedDate) {
+    const row = await sbFetch('court_members?select=*', {
+      method: 'POST', prefer: 'return=representation',
+      body: JSON.stringify({ user_id: sbSession.user.id, name, joined_date: joinedDate }),
+    });
+    if (row && row[0]) cbMembers.push(row[0]);
+    cbMembers.sort((a, b) => a.joined_date.localeCompare(b.joined_date) || a.created_at.localeCompare(b.created_at));
+  }
+
+  async function cbDeleteMember(id) {
+    await sbFetch(`court_members?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+    cbMembers = cbMembers.filter(m => m.id !== id);
+  }
+
+  async function cbSaveBooking(payload) {
+    const row = await sbFetch('court_bookings?select=*', {
+      method: 'POST', prefer: 'return=representation',
+      body: JSON.stringify({ user_id: sbSession.user.id, ...payload }),
+    });
+    if (row && row[0]) cbBookings.unshift(row[0]);
+  }
+
+  async function cbUpdateBooking(id, payload) {
+    const row = await sbFetch(`court_bookings?id=eq.${id}&select=*`, {
+      method: 'PATCH', prefer: 'return=representation',
+      body: JSON.stringify(payload),
+    });
+    if (row && row[0]) {
+      const idx = cbBookings.findIndex(b => b.id === id);
+      if (idx >= 0) cbBookings[idx] = row[0];
+    }
+  }
+
+  async function cbDeleteBookingRow(id) {
+    await sbFetch(`court_bookings?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+    cbBookings = cbBookings.filter(b => b.id !== id);
+  }
+
+  // ── initCourtModule (called from renderAuth) ──
+  async function initCourtModule() {
+    const panel = document.getElementById('courtPanel');
+    if (!sbSession) { panel.style.display = 'none'; cbMembers = []; cbBookings = []; return; }
+    panel.style.display = '';
+    ['cbDate', 'cbExpDate'].forEach(id => { const el = document.getElementById(id); if (el && !el.value) el.value = cbTodayISO(); });
+    const joinEl = document.getElementById('cbMemberJoinDate');
+    if (joinEl && !joinEl.value) joinEl.value = cbTodayISO();
+    await Promise.all([cbLoadMembers(), cbLoadBookings()]);
     renderCB();
   }
 
@@ -2613,19 +2708,42 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
   document.getElementById('cbMemberInput').addEventListener('keydown', e => { if (e.key === 'Enter') cbAddMember(); });
   document.getElementById('cbAddMemberBtn').addEventListener('click', cbAddMember);
 
-  function cbAddMember() {
-    if (!cbState) return;
+  async function cbAddMember() {
+    if (!sbSession) return;
     const name = document.getElementById('cbMemberInput').value.trim();
-    if (!name) return;
-    if (cbState.members.some(m => m.toLowerCase() === name.toLowerCase())) { toast('Member already in group'); return; }
-    cbState.members.push(name);
-    document.getElementById('cbMemberInput').value = '';
-    cbSave(); renderCB();
+    const joinedDate = document.getElementById('cbMemberJoinDate').value || cbTodayISO();
+    if (!name) { toast('Enter member name'); return; }
+    if (cbMembers.some(m => m.name.toLowerCase() === name.toLowerCase())) { toast('Member already in group'); return; }
+    try {
+      await cbSaveMember(name, joinedDate);
+      document.getElementById('cbMemberInput').value = '';
+      document.getElementById('cbMemberJoinDate').value = cbTodayISO();
+      renderCB();
+      toast('Member added — splits bookings from ' + joinedDate + ' onward');
+    } catch (e) { toast('Error saving member: ' + e.message); }
+  }
+
+  async function cbRemoveMember(member) {
+    if (cbMemberHasPending(member.name)) {
+      const pendingAmt = cbBookings.reduce((sum, b) => {
+        const am = b.active_members || [];
+        if (!am.some(m => m.name === member.name) || b.paid_by === member.name) return sum;
+        return sum + (am.length ? b.total_cost / am.length : 0);
+      }, 0);
+      alert(`⚠️ ${member.name} has ${cbFmt(pendingAmt)} in unsettled payments.\n\nPlease settle their pending amounts before removing them from the group.`);
+      return;
+    }
+    if (!confirm(`Remove ${member.name} from the group?`)) return;
+    try {
+      await cbDeleteMember(member.id);
+      renderCB();
+      toast('Member removed');
+    } catch (e) { toast('Error: ' + e.message); }
   }
 
   // ── Bookings ──
-  document.getElementById('cbAddBookingBtn').addEventListener('click', () => {
-    if (!cbState) return;
+  document.getElementById('cbAddBookingBtn').addEventListener('click', async () => {
+    if (!sbSession) return;
     const date = document.getElementById('cbDate').value;
     const timeFrom = document.getElementById('cbTimeFrom').value;
     const timeTo = document.getElementById('cbTimeTo').value;
@@ -2634,15 +2752,22 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     const note = document.getElementById('cbNote').value.trim();
     if (!date || !paidBy) { toast('Select date and who paid'); return; }
     if (isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
-    cbState.bookings.push({ id: cbUid(), date, timeFrom, timeTo, paidBy, amount, note });
-    document.getElementById('cbAmount').value = '';
-    document.getElementById('cbNote').value = '';
-    cbSave(); renderCB(); toast('Booking added');
+    const activeMembers = cbActiveMembersOn(date);
+    if (!activeMembers.length) { toast('No members active on this date'); return; }
+    try {
+      await cbSaveBooking({ booking_date: date, time_from: timeFrom, time_to: timeTo,
+        description: note, entry_type: 'court', total_cost: amount, paid_by: paidBy,
+        active_members: activeMembers, payments: {} });
+      document.getElementById('cbAmount').value = '';
+      document.getElementById('cbNote').value = '';
+      renderCB();
+      toast(`Booking added — split among ${activeMembers.length} member${activeMembers.length !== 1 ? 's' : ''}`);
+    } catch (e) { toast('Error saving booking: ' + e.message); }
   });
 
   // ── Expenses ──
-  document.getElementById('cbAddExpBtn').addEventListener('click', () => {
-    if (!cbState) return;
+  document.getElementById('cbAddExpBtn').addEventListener('click', async () => {
+    if (!sbSession) return;
     const date = document.getElementById('cbExpDate').value;
     const type = document.getElementById('cbExpType').value;
     const desc = document.getElementById('cbExpDesc').value.trim();
@@ -2650,40 +2775,87 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     const amount = parseFloat(document.getElementById('cbExpAmount').value);
     if (!date || !paidBy) { toast('Select date and who paid'); return; }
     if (isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
-    cbState.expenses.push({ id: cbUid(), date, type, desc, paidBy, amount });
-    document.getElementById('cbExpAmount').value = '';
-    document.getElementById('cbExpDesc').value = '';
-    cbSave(); renderCB(); toast('Expense added');
+    const activeMembers = cbActiveMembersOn(date);
+    if (!activeMembers.length) { toast('No members active on this date'); return; }
+    try {
+      await cbSaveBooking({ booking_date: date, description: desc, entry_type: type,
+        total_cost: amount, paid_by: paidBy, active_members: activeMembers, payments: {} });
+      document.getElementById('cbExpAmount').value = '';
+      document.getElementById('cbExpDesc').value = '';
+      renderCB();
+      toast('Expense added');
+    } catch (e) { toast('Error saving expense: ' + e.message); }
   });
 
-  // ── Clear entries ──
-  document.getElementById('cbClearAllBtn').addEventListener('click', () => {
-    if (!cbState) return;
-    if (!confirm('Clear all court bookings and expenses? Group members will be kept.')) return;
-    cbState.bookings = [];
-    cbState.expenses = [];
-    cbSave(); renderCB(); toast('Entries cleared');
-  });
+  // ── Delete booking/expense ──
+  async function cbDeleteEntry(id) {
+    if (!confirm('Delete this entry?')) return;
+    try {
+      await cbDeleteBookingRow(id);
+      renderCB();
+      toast('Entry deleted');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
 
-  // ── Split computation ──
+  // ── Inline edit booking ──
+  async function cbSaveEdit(id) {
+    const b = cbBookings.find(x => x.id === id);
+    if (!b) return;
+    const isExp = b.entry_type !== 'court';
+    const dateEl  = document.getElementById(`cbe-date-${id}`);
+    const amtEl   = document.getElementById(`cbe-amt-${id}`);
+    const paidEl  = document.getElementById(`cbe-paid-${id}`);
+    const noteEl  = document.getElementById(`cbe-note-${id}`);
+    const date    = dateEl?.value;
+    const amount  = parseFloat(amtEl?.value);
+    const paidBy  = paidEl?.value;
+    const note    = noteEl?.value.trim() || '';
+    if (!date || !paidBy || isNaN(amount) || amount <= 0) { toast('Fill all fields'); return; }
+    // Recalculate active members for new date; preserve existing payment records for still-active members
+    const newActive  = cbActiveMembersOn(date);
+    const oldPayments = b.payments || {};
+    const newPayments = {};
+    newActive.forEach(m => { if (oldPayments[m.name] !== undefined) newPayments[m.name] = oldPayments[m.name]; });
+    try {
+      await cbUpdateBooking(id, { booking_date: date, total_cost: amount, paid_by: paidBy,
+        description: note, active_members: newActive, payments: newPayments });
+      cbEditingId = null;
+      renderCB();
+      toast('Entry updated');
+    } catch (e) { toast('Error: ' + e.message); }
+  }
+
+  // ── Split computation (per-booking active_members snapshots) ──
   function computeCBSplit() {
-    const { members, bookings, expenses } = cbState;
-    if (!members.length) return null;
-    const paid = Object.fromEntries(members.map(m => [m, 0]));
-    [...bookings, ...expenses].forEach(x => { if (x.paidBy in paid) paid[x.paidBy] += x.amount; });
-    const totalCourt = bookings.reduce((s, b) => s + b.amount, 0);
-    const totalMisc  = expenses.reduce((s, e) => s + e.amount, 0);
+    if (!cbMembers.length || !cbBookings.length) return null;
+    // Net balance per member across all bookings
+    const netPaid  = {}; // total they paid out (as payer)
+    const netOwed  = {}; // total they owe (as participant)
+    cbMembers.forEach(m => { netPaid[m.name] = 0; netOwed[m.name] = 0; });
+    let totalCourt = 0, totalMisc = 0;
+
+    cbBookings.forEach(b => {
+      const am = b.active_members || [];
+      if (!am.length) return;
+      const share = b.total_cost / am.length;
+      if (b.entry_type === 'court') totalCourt += b.total_cost;
+      else totalMisc += b.total_cost;
+      // Payer gets credit for full cost
+      if (b.paid_by in netPaid) netPaid[b.paid_by] += b.total_cost;
+      // Each active member owes their share
+      am.forEach(m => { if (m.name in netOwed) netOwed[m.name] += share; });
+    });
+
     const total = totalCourt + totalMisc;
-    const share = total / members.length;
-    const balances = members.map(m => ({
-      name: m,
-      paid: paid[m],
-      share,
-      balance: +(paid[m] - share).toFixed(2),
-    }));
+    const balances = cbMembers.map(m => {
+      const paid = netPaid[m.name] || 0;
+      const share = netOwed[m.name] || 0;
+      return { name: m.name, paid, share, balance: +(paid - share).toFixed(2) };
+    });
+
     // Minimal settlements (greedy)
     const creds = balances.filter(b => b.balance > 0.005).map(b => ({ name: b.name, rem: b.balance })).sort((a,b) => b.rem-a.rem);
-    const debts = balances.filter(b => b.balance < -0.005).map(b => ({ name: b.name, rem: -b.balance })).sort((a,b) => b.rem-a.rem);
+    const debts  = balances.filter(b => b.balance < -0.005).map(b => ({ name: b.name, rem: -b.balance })).sort((a,b) => b.rem-a.rem);
     const settlements = [];
     let ci = 0, di = 0;
     while (ci < creds.length && di < debts.length) {
@@ -2693,98 +2865,106 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
       if (creds[ci].rem < 0.005) ci++;
       if (debts[di].rem < 0.005) di++;
     }
-    return { total, totalCourt, totalMisc, share, balances, settlements };
+    return { total, totalCourt, totalMisc, balances, settlements };
   }
 
   // ── Main render ──
   function renderCB() {
-    if (!cbState) return;
-    const { members, bookings, expenses } = cbState;
-
     // Members list
-    const memberList = document.getElementById('cbMemberList');
+    const memberList  = document.getElementById('cbMemberList');
     const memberEmpty = document.getElementById('cbMemberEmpty');
     memberList.innerHTML = '';
-    memberEmpty.style.display = members.length ? 'none' : '';
-    members.forEach((m, i) => {
+    memberEmpty.style.display = cbMembers.length ? 'none' : '';
+    cbMembers.forEach(m => {
       const pill = document.createElement('span');
       pill.className = 'pill';
-      pill.innerHTML = `<span></span><button title="Remove">×</button>`;
-      pill.firstChild.textContent = m;
-      pill.querySelector('button').addEventListener('click', () => {
-        const inUse = [...bookings, ...expenses].some(x => x.paidBy === m);
-        if (inUse && !confirm(`${m} has entries. Remove anyway? Their entries will show "unknown payer" in the split.`)) return;
-        cbState.members.splice(i, 1);
-        cbSave(); renderCB();
-      });
+      pill.innerHTML = `<span></span><small style="color:var(--muted);font-size:11px;margin-left:4px">since ${m.joined_date}</small><button title="Remove member">×</button>`;
+      pill.querySelector('span').textContent = m.name;
+      pill.querySelector('button').addEventListener('click', () => cbRemoveMember(m));
       memberList.appendChild(pill);
     });
 
     // Sync paidBy dropdowns
-    const opts = members.length
-      ? members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')
+    const memberNames = cbMembers.map(m => m.name);
+    const opts = memberNames.length
+      ? memberNames.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')
       : '<option value="">— Add members first —</option>';
     ['cbPaidBy', 'cbExpPaidBy'].forEach(id => {
       const sel = document.getElementById(id);
       const prev = sel.value;
       sel.innerHTML = opts;
-      if (prev && members.includes(prev)) sel.value = prev;
+      if (prev && memberNames.includes(prev)) sel.value = prev;
     });
 
-    // Bookings list
-    const bookingList = document.getElementById('cbBookingList');
-    bookingList.innerHTML = '';
-    if (!bookings.length) {
-      bookingList.innerHTML = '<div class="empty">No bookings yet.</div>';
-    } else {
-      [...bookings].sort((a,b) => b.date.localeCompare(a.date) || (b.timeFrom||'').localeCompare(a.timeFrom||'')).forEach(b => {
+    const typeIcon = { court: 'Court', shuttle: '🏸 Shuttle', snacks: '🍟 Snacks', misc: '📦 Misc' };
+
+    // Render entries (bookings + expenses together, separated by type)
+    function renderEntryList(entries, listId, entryType) {
+      const list = document.getElementById(listId);
+      list.innerHTML = '';
+      if (!entries.length) { list.innerHTML = '<div class="empty">No entries yet.</div>'; return; }
+      entries.forEach(b => {
+        const am = b.active_members || [];
+        const share = am.length ? b.total_cost / am.length : 0;
+        const isEditing = cbEditingId === b.id;
         const div = document.createElement('div');
         div.className = 'cb-item';
-        const timeStr = b.timeFrom ? `${b.timeFrom}${b.timeTo ? ' – '+b.timeTo : ''}` : '';
-        div.innerHTML = `
-          <div class="cb-item-info">
-            <div class="cb-item-title"><span class="cb-type-badge court">Court</span> ${esc(b.date)}${timeStr ? ' · '+timeStr : ''}</div>
-            <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(b.paidBy)}</strong>${b.note ? ' · '+esc(b.note) : ''}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="cb-item-amount">${cbFmt(b.amount)}</div>
-            <button class="secondary" style="padding:5px 8px;font-size:12px" data-id="${b.id}">✕</button>
-          </div>`;
-        div.querySelector('button').addEventListener('click', () => { cbState.bookings = cbState.bookings.filter(x => x.id !== b.id); cbSave(); renderCB(); });
-        bookingList.appendChild(div);
+        div.style.flexDirection = 'column';
+        div.style.alignItems = 'stretch';
+
+        if (isEditing) {
+          // Inline edit form
+          const memberOpts = memberNames.map(n => `<option value="${esc(n)}"${n===b.paid_by?' selected':''}>${esc(n)}</option>`).join('');
+          div.innerHTML = `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              <input type="date" id="cbe-date-${b.id}" value="${b.booking_date}" class="cb-date-input" style="flex:0 0 auto" />
+              <input type="number" id="cbe-amt-${b.id}" value="${b.total_cost}" class="cb-num-input" placeholder="Amount" min="0" step="0.01" style="width:110px" />
+              <select id="cbe-paid-${b.id}" class="cb-sel">${memberOpts}</select>
+              <input type="text" id="cbe-note-${b.id}" value="${esc(b.description||'')}" placeholder="Note" style="background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;flex:1;min-width:100px" />
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Active members will be recalculated for the updated date.</div>
+            <div style="display:flex;gap:8px">
+              <button class="save-cb-edit" style="font-size:12px;padding:6px 14px">✔ Save</button>
+              <button class="secondary cancel-cb-edit" style="font-size:12px;padding:6px 14px">Cancel</button>
+            </div>`;
+          div.querySelector('.save-cb-edit').addEventListener('click', () => cbSaveEdit(b.id));
+          div.querySelector('.cancel-cb-edit').addEventListener('click', () => { cbEditingId = null; renderCB(); });
+        } else {
+          const badge = b.entry_type === 'court' ? 'court' : b.entry_type;
+          const timeStr = b.time_from ? ` · ${b.time_from}${b.time_to ? '–'+b.time_to : ''}` : '';
+          const memberStr = am.length ? `Split: ${am.map(m => m.name).join(', ')} (${cbFmt(share)}/person)` : '';
+          div.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div class="cb-item-info" style="flex:1;min-width:0">
+                <div class="cb-item-title"><span class="cb-type-badge ${badge}">${typeIcon[b.entry_type]||b.entry_type}</span> ${esc(b.booking_date)}${timeStr}</div>
+                <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(b.paid_by||'—')}</strong>${b.description ? ' · '+esc(b.description) : ''}</div>
+                ${am.length ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(memberStr)}</div>` : ''}
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <div class="cb-item-amount">${cbFmt(b.total_cost)}</div>
+                <button class="secondary edit-cb-btn" style="padding:4px 8px;font-size:11px" title="Edit">✏️</button>
+                <button class="secondary del-cb-btn" style="padding:4px 8px;font-size:11px;color:var(--warn)" title="Delete">🗑</button>
+              </div>
+            </div>`;
+          div.querySelector('.edit-cb-btn').addEventListener('click', () => { cbEditingId = b.id; renderCB(); });
+          div.querySelector('.del-cb-btn').addEventListener('click', () => cbDeleteEntry(b.id));
+        }
+        list.appendChild(div);
       });
     }
 
-    // Expenses list
-    const expList = document.getElementById('cbExpList');
-    expList.innerHTML = '';
-    if (!expenses.length) {
-      expList.innerHTML = '<div class="empty">No expenses yet.</div>';
-    } else {
-      const typeIcon = { shuttle: '🏸 Shuttle', snacks: '🍟 Snacks', misc: '📦 Misc' };
-      [...expenses].sort((a,b) => b.date.localeCompare(a.date)).forEach(e => {
-        const div = document.createElement('div');
-        div.className = 'cb-item';
-        div.innerHTML = `
-          <div class="cb-item-info">
-            <div class="cb-item-title"><span class="cb-type-badge ${esc(e.type)}">${typeIcon[e.type]||e.type}</span> ${esc(e.date)}${e.desc ? ' · '+esc(e.desc) : ''}</div>
-            <div class="cb-item-sub">Paid by <strong style="color:var(--text)">${esc(e.paidBy)}</strong></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="cb-item-amount">${cbFmt(e.amount)}</div>
-            <button class="secondary" style="padding:5px 8px;font-size:12px" data-id="${e.id}">✕</button>
-          </div>`;
-        div.querySelector('button').addEventListener('click', () => { cbState.expenses = cbState.expenses.filter(x => x.id !== e.id); cbSave(); renderCB(); });
-        expList.appendChild(div);
-      });
-    }
+    const courtEntries = cbBookings.filter(b => b.entry_type === 'court')
+      .sort((a,b) => b.booking_date.localeCompare(a.booking_date) || (b.time_from||'').localeCompare(a.time_from||''));
+    const expEntries = cbBookings.filter(b => b.entry_type !== 'court')
+      .sort((a,b) => b.booking_date.localeCompare(a.booking_date));
+
+    renderEntryList(courtEntries, 'cbBookingList', 'court');
+    renderEntryList(expEntries, 'cbExpList', 'expense');
 
     // Split summary
     const splitSection = document.getElementById('cbSplitSection');
-    const splitArea = document.getElementById('cbSplitArea');
-    if (!members.length || (!bookings.length && !expenses.length)) {
-      splitSection.style.display = 'none'; return;
-    }
+    const splitArea    = document.getElementById('cbSplitArea');
+    if (!cbMembers.length || !cbBookings.length) { splitSection.style.display = 'none'; return; }
     splitSection.style.display = '';
     splitArea.innerHTML = '';
     const split = computeCBSplit();
@@ -2795,15 +2975,14 @@ CREATE POLICY "Admin delete tournaments" ON tournaments
     totals.className = 'cb-totals';
     totals.innerHTML = [
       ['Court Total', cbFmt(split.totalCourt), ''],
-      ['Misc Total', cbFmt(split.totalMisc), ''],
-      ['Grand Total', cbFmt(split.total), 'color:var(--accent)'],
-      ['Per Person', cbFmt(split.share), 'color:var(--accent)'],
+      ['Misc Total',  cbFmt(split.totalMisc),  ''],
+      ['Grand Total', cbFmt(split.total),       'color:var(--accent)'],
     ].map(([label, val, style]) =>
       `<div class="cb-total-box"><div class="cb-total-label">${label}</div><div class="cb-total-value" style="${style}">${val}</div></div>`
     ).join('');
     splitArea.appendChild(totals);
 
-    // Balance table
+    // Balance table (each member's individual fair share differs based on when they joined)
     const table = document.createElement('table');
     table.className = 'cb-split-table';
     table.innerHTML = '<thead><tr><th>Member</th><th>Paid</th><th>Fair Share</th><th>Balance</th></tr></thead>';
