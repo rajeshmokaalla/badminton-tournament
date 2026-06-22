@@ -172,6 +172,27 @@
   .google-btn:hover { background: #f3f4f6; }
   .guest-prompt { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
   .history-winner-name { color: var(--accent); }
+  /* ── Subscription Modal ── */
+  .sub-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1100; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .sub-modal.open { display: flex; }
+  .sub-box { background: var(--panel); border-radius: 16px; padding: 28px 24px; max-width: 420px; width: 100%; box-shadow: var(--shadow); margin: auto; }
+  .sub-box h2 { margin: 0 0 8px; font-size: 20px; }
+  .sub-payment-card { background: var(--panel-2); border-radius: 10px; padding: 18px 16px; margin: 14px 0; text-align: center; border: 2px solid var(--accent); }
+  .sub-amount { font-size: 32px; font-weight: 800; color: var(--accent); margin: 6px 0; }
+  .sub-mobile-num { font-size: 26px; font-weight: 700; letter-spacing: 1px; color: var(--text); margin: 6px 0 2px; }
+  .sub-method-label { font-size: 13px; color: var(--muted); }
+  .sub-check-row { display: flex; align-items: flex-start; gap: 10px; background: var(--panel-2); padding: 12px; border-radius: 8px; margin: 12px 0; cursor: pointer; }
+  .sub-check-row input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+  .sub-check-row span { font-size: 13px; line-height: 1.5; }
+  /* ── Admin Panel ── */
+  .admin-sub-row { background: var(--panel-2); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .admin-sub-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .status-badge { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  .status-badge.pending { background: #facc15; color: #422006; }
+  .status-badge.approved { background: var(--accent); color: #052e16; }
+  .status-badge.rejected { background: var(--warn); color: #fff; }
+  .admin-sub-details { font-size: 13px; color: var(--muted); line-height: 1.9; }
+  .admin-sub-details strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -286,6 +307,7 @@
     </div>
     <div id="cloudTodayCount" style="font-size:13px;color:var(--muted);margin-bottom:4px"></div>
     <div id="cloudStatus" style="font-size:13px;margin-top:4px"></div>
+    <div id="subStatusBadge" style="font-size:13px;margin-top:6px"></div>
   </div>
 
   <!-- Past Tournaments Panel -->
@@ -331,7 +353,95 @@
     </div>
   </div>
 
+  <!-- Admin Panel — only visible when logged in as admin -->
+  <div class="panel" id="adminPanel" style="display:none">
+    <div class="section-title-row">
+      <h2>🛡️ Admin — Subscriptions</h2>
+      <button class="secondary" id="refreshAdminBtn" style="font-size:13px;padding:7px 14px">🔄 Refresh</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Review and approve or reject subscription payment requests.</p>
+    <div id="adminSubList"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- Contact Us -->
+  <div class="panel" style="margin-top:8px">
+    <h2 style="margin-top:0">📬 Contact Us</h2>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">✉️</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Email</div>
+          <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:14px">rajesh.mokaalla@gmail.com</a>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">🇮🇳</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">India · PhonePe</div>
+          <a href="tel:+919849504494" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+91 98495 04494</a>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:20px">🇸🇬</span>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Singapore · PayNow</div>
+          <a href="tel:+6591650536" style="color:var(--text);font-weight:600;text-decoration:none;font-size:14px">+65 9165 0536</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Notice -->
+  <div class="panel" style="margin-top:8px">
+    <h2 style="margin-top:0;font-size:16px">🔐 Privacy Notice</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.8">
+      When you subscribe, we collect your <strong style="color:var(--text)">name, email address, country, and mobile number</strong>. This information is used solely to process your subscription and verify payment. It is visible only to the app administrator and stored securely in Supabase. We do not share your data with any third party. Your subscription is valid for <strong style="color:var(--text)">12 months</strong> from the date of approval and must be renewed annually. To request deletion of your data, contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a>.
+    </p>
+  </div>
+
   <div class="footer-note">Saved automatically in your browser · Cloud sync via Supabase</div>
+</div>
+
+<!-- Subscription Modal -->
+<div class="sub-modal" id="subModal">
+  <div class="sub-box">
+    <h2 id="subModalTitle">🔓 Unlock Unlimited Saves</h2>
+    <p id="subModalDesc" style="font-size:13px;color:var(--muted);margin:0 0 4px">You've used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.</p>
+    <div id="subPaymentCard" class="sub-payment-card" style="display:none">
+      <div class="sub-method-label" id="subMethodLabel"></div>
+      <div class="sub-amount" id="subAmountLabel"></div>
+      <div class="sub-method-label">to mobile number:</div>
+      <div class="sub-mobile-num" id="subMobileLabel"></div>
+      <div class="sub-method-label" style="margin-top:6px;font-size:12px">Annual subscription · 12 months from date of approval</div>
+    </div>
+    <div id="subOtherMsg" style="display:none;background:var(--panel-2);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;color:var(--muted)">
+      Subscription: <strong style="color:var(--text)">USD $15 / year (12 months)</strong><br>
+      Contact <a href="mailto:rajesh.mokaalla@gmail.com" style="color:var(--accent)">rajesh.mokaalla@gmail.com</a> to arrange payment, then fill in your details below.
+    </div>
+    <div style="margin-top:14px">
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Your country (auto-detected)</label>
+        <input type="text" id="subCountryInput" readonly style="width:100%;background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;cursor:default" />
+      </div>
+      <label class="sub-check-row">
+        <input type="checkbox" id="subPaidCheck" />
+        <span id="subCheckLabel">I have paid the subscription amount</span>
+      </label>
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Mobile number used for payment</label>
+        <input type="text" id="subMobileInput" placeholder="e.g. 9849504494" style="width:100%;background:var(--panel-2);border:1px solid #475569;color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px" />
+      </div>
+    </div>
+    <div style="background:var(--panel-2);border-radius:8px;padding:10px 12px;margin:12px 0 6px;font-size:12px;color:var(--muted);line-height:1.6">
+      💰 <strong style="color:var(--text)">Refund policy:</strong> If your request is rejected, a full refund will be sent to the same mobile number within 3 business days.
+    </div>
+    <div id="subStatus" style="font-size:13px;margin:6px 0;min-height:18px;color:var(--warn)"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <button id="subSubmitBtn" disabled style="flex:1">✓ Submit Subscription Request</button>
+      <button class="secondary" id="subCancelBtn">Cancel</button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Annual subscription · 12 months from date of admin approval.</p>
+  </div>
 </div>
 
 <!-- QR Code Modal -->
@@ -1334,6 +1444,8 @@
   // ─────────────────────────────────────────────
   const SB_URL = 'https://ltkasvztgekspcbhayaj.supabase.co';
   const SB_KEY = 'sb_publishable_TYlrkYkf-67K7uFwjiMjxw_Q4Mx2-is';
+  const ADMIN_EMAIL = 'rajesh.mokaalla@gmail.com';
+  const WEB3FORMS_KEY = ''; // Optional: get free key at web3forms.com for automatic email alerts
 
   function setCloudStatus(msg, color) {
     const el = document.getElementById('cloudStatus');
@@ -1380,8 +1492,7 @@
       : 'No tournaments saved yet today — this will be the first.';
   }
 
-  document.getElementById('saveCloudBtn').addEventListener('click', async () => {
-    if (!sbSession) return;
+  async function doSaveTournament() {
     const btn = document.getElementById('saveCloudBtn');
     btn.disabled = true;
     setCloudStatus('Saving…', 'var(--muted)');
@@ -1399,6 +1510,189 @@
     } catch (e) {
       setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
     } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function countUserTournaments() {
+    if (!sbSession) return 0;
+    try {
+      const rows = await sbFetch('tournaments?select=id');
+      return rows ? rows.length : 0;
+    } catch { return 0; }
+  }
+
+  async function checkSubscription() {
+    const s = await checkSubscriptionStatus();
+    return s === 'approved' || s === 'expiring_soon';
+  }
+
+  async function checkSubscriptionStatus() {
+    if (!sbSession) return 'none';
+    try {
+      const rows = await sbFetch(`subscriptions?user_id=eq.${sbSession.user.id}&select=status,valid_until&order=created_at.desc&limit=1`);
+      if (!rows || rows.length === 0) return 'none';
+      const sub = rows[0];
+      if (sub.status === 'approved') {
+        _subValidUntil = sub.valid_until ? new Date(sub.valid_until) : null;
+        if (_subValidUntil) {
+          const now = new Date();
+          if (_subValidUntil < now) return 'expired';
+          const daysLeft = Math.ceil((_subValidUntil - now) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 30) return 'expiring_soon';
+        }
+        return 'approved';
+      }
+      _subValidUntil = null;
+      return sub.status || 'pending';
+    } catch { return 'none'; }
+  }
+
+  async function detectCountry() {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (!res.ok) throw new Error('');
+      const d = await res.json();
+      return { code: d.country_code || 'OTHER', name: d.country_name || 'Unknown' };
+    } catch {
+      return { code: 'OTHER', name: 'Unknown' };
+    }
+  }
+
+  function getSubInfo(code) {
+    if (code === 'SG') return { amount: 'SGD $15 / year', method: 'PayNow', mobile: '91650536', label: 'Send via PayNow to:' };
+    if (code === 'IN') return { amount: '₹1,000 / year', method: 'PhonePe', mobile: '9849504494', label: 'Send via PhonePe to:' };
+    return null; // other countries: use Contact Us details above
+  }
+
+  let _subValidUntil = null;
+
+  let _subCountryCode = 'OTHER';
+  let _subCountryName = 'Unknown';
+
+  async function openSubscriptionModal(isRenewal = false) {
+    const modal = document.getElementById('subModal');
+    modal.classList.add('open');
+    document.getElementById('subPaidCheck').checked = false;
+    document.getElementById('subMobileInput').value = '';
+    document.getElementById('subStatus').textContent = '';
+    document.getElementById('subSubmitBtn').disabled = true;
+    document.getElementById('subCountryInput').value = 'Detecting location…';
+    document.getElementById('subPaymentCard').style.display = 'none';
+    document.getElementById('subOtherMsg').style.display = 'none';
+    document.getElementById('subModalTitle').textContent = isRenewal ? '🔄 Renew Your Subscription' : '🔓 Unlock Unlimited Saves';
+    document.getElementById('subModalDesc').innerHTML = isRenewal
+      ? 'Your annual subscription has expired. Renew for another <strong style="color:var(--text)">12 months</strong> to continue saving tournaments to the cloud.'
+      : 'You\'ve used all <strong style="color:var(--text)">3 free tournament saves</strong>. Subscribe to continue saving future tournaments to the cloud.';
+
+    const { code, name } = await detectCountry();
+    _subCountryCode = code;
+    _subCountryName = name;
+    document.getElementById('subCountryInput').value = name;
+
+    const info = getSubInfo(code);
+    if (info) {
+      document.getElementById('subMethodLabel').textContent = info.label;
+      document.getElementById('subAmountLabel').textContent = info.amount;
+      document.getElementById('subMobileLabel').textContent = info.mobile;
+      document.getElementById('subCheckLabel').textContent = `I have paid ${info.amount} via ${info.method}`;
+      document.getElementById('subPaymentCard').style.display = '';
+    } else {
+      document.getElementById('subCheckLabel').textContent = 'I have paid the subscription amount';
+      document.getElementById('subOtherMsg').style.display = '';
+    }
+  }
+
+  document.getElementById('subCancelBtn').addEventListener('click', () => {
+    document.getElementById('subModal').classList.remove('open');
+  });
+
+  document.getElementById('subModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('subModal'))
+      document.getElementById('subModal').classList.remove('open');
+  });
+
+  function updateSubSubmitBtn() {
+    const checked = document.getElementById('subPaidCheck').checked;
+    const mobile = document.getElementById('subMobileInput').value.trim();
+    document.getElementById('subSubmitBtn').disabled = !checked || !mobile;
+  }
+  document.getElementById('subPaidCheck').addEventListener('change', updateSubSubmitBtn);
+  document.getElementById('subMobileInput').addEventListener('input', updateSubSubmitBtn);
+
+  document.getElementById('subSubmitBtn').addEventListener('click', async () => {
+    const mobile = document.getElementById('subMobileInput').value.trim();
+    if (!mobile || !document.getElementById('subPaidCheck').checked) return;
+    const submitBtn = document.getElementById('subSubmitBtn');
+    submitBtn.disabled = true;
+    document.getElementById('subStatus').textContent = 'Saving subscription…';
+    const info = getSubInfo(_subCountryCode);
+    try {
+      const subData = {
+        user_id: sbSession.user.id,
+        user_email: sbSession.user.email,
+        user_name: sbSession.user.user_metadata?.full_name || '',
+        country: _subCountryName,
+        country_code: _subCountryCode,
+        amount_paid: info ? info.amount : 'USD $15 / year',
+        payment_method: info ? info.method : 'other',
+        mobile_used: mobile,
+        status: 'pending',
+      };
+      await sbFetch('subscriptions?', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify(subData),
+      });
+      document.getElementById('subModal').classList.remove('open');
+      notifyAdminByEmail(subData).catch(() => {});
+      toast('Request submitted! Admin will review and approve within 24 hrs.');
+    } catch (e) {
+      document.getElementById('subStatus').textContent = `❌ ${e.message}`;
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('saveCloudBtn').addEventListener('click', async () => {
+    if (!sbSession) return;
+    const btn = document.getElementById('saveCloudBtn');
+    btn.disabled = true;
+    setCloudStatus('Checking…', 'var(--muted)');
+    try {
+      const total = await countUserTournaments();
+
+      if (total >= 3) {
+        // 4th+ save — requires active subscription
+        const subStatus = await checkSubscriptionStatus();
+        if (subStatus === 'approved' || subStatus === 'expiring_soon') { await doSaveTournament(); return; }
+        btn.disabled = false;
+        if (subStatus === 'pending') {
+          setCloudStatus('⏳ Your subscription request is pending approval. Saves resume once admin verifies your payment.', '#f59e0b');
+          return;
+        }
+        if (subStatus === 'rejected') {
+          setCloudStatus(`❌ Your subscription request was rejected. Contact ${ADMIN_EMAIL} for help.`, 'var(--warn)');
+          return;
+        }
+        if (subStatus === 'expired') {
+          setCloudStatus('⚠️ Your annual subscription has expired. Please renew to continue saving.', 'var(--warn)');
+          setTimeout(() => openSubscriptionModal(true), 1000);
+          return;
+        }
+        setCloudStatus('', '');
+        openSubscriptionModal(false);
+        return;
+      }
+
+      // 1st / 2nd / 3rd save — proceed freely
+      await doSaveTournament();
+
+      // After the 3rd save, show subscription modal proactively so user knows what comes next
+      if (total === 2) {
+        setTimeout(() => openSubscriptionModal(), 1500);
+      }
+    } catch (e) {
+      setCloudStatus(`❌ ${e.message}`, 'var(--warn)');
       btn.disabled = false;
     }
   });
@@ -1510,6 +1804,10 @@
     document.getElementById('historyAuthArea').style.display = isAuth ? '' : 'none';
     document.getElementById('statsGuestMsg').style.display = isAuth ? 'none' : '';
     document.getElementById('statsAuthArea').style.display = isAuth ? '' : 'none';
+    const adminVisible = isAuth && isAdminUser();
+    document.getElementById('adminPanel').style.display = adminVisible ? '' : 'none';
+    if (adminVisible) loadAdminSubscriptions();
+    if (isAuth) renderSubStatus();
     cloudRender();
   }
 
@@ -1709,6 +2007,132 @@
     });
   }
 
+  // ─────────────────────────────────────────────
+  // Admin Panel
+  // ─────────────────────────────────────────────
+  function isAdminUser() { return sbSession?.user?.email === ADMIN_EMAIL; }
+
+  async function notifyAdminByEmail(subData) {
+    if (!WEB3FORMS_KEY) return; // admin uses the in-app panel; email is optional
+    try {
+      await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_KEY,
+          subject: `New subscription request — ${subData.user_name || subData.user_email}`,
+          from_name: 'Badminton Tournament App',
+          name: subData.user_name || 'Unknown',
+          email: subData.user_email || '',
+          country: `${subData.country} (${subData.country_code})`,
+          amount_paid: subData.amount_paid,
+          payment_method: subData.payment_method,
+          mobile_used: subData.mobile_used,
+          message: `Approve/Reject: https://rajeshmokaalla.github.io/badminton-tournament/`,
+        }),
+      });
+    } catch { /* non-critical */ }
+  }
+
+  async function loadAdminSubscriptions() {
+    const listEl = document.getElementById('adminSubList');
+    listEl.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const rows = await sbFetch('subscriptions?select=*&order=created_at.desc');
+      if (!rows || rows.length === 0) {
+        listEl.innerHTML = '<div class="empty">No subscription requests yet.</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      const pending = rows.filter(r => !r.status || r.status === 'pending');
+      const reviewed = rows.filter(r => r.status && r.status !== 'pending');
+
+      if (pending.length > 0) {
+        const h = document.createElement('h3');
+        h.style.cssText = 'margin:0 0 10px;font-size:14px;color:var(--warn)';
+        h.textContent = `Pending approval (${pending.length})`;
+        listEl.appendChild(h);
+        pending.forEach(row => listEl.appendChild(buildAdminSubRow(row)));
+      }
+      if (reviewed.length > 0) {
+        const h = document.createElement('h3');
+        h.style.cssText = `margin:${pending.length ? '20px' : '0'} 0 10px;font-size:14px;color:var(--muted)`;
+        h.textContent = `Reviewed (${reviewed.length})`;
+        listEl.appendChild(h);
+        reviewed.forEach(row => listEl.appendChild(buildAdminSubRow(row)));
+      }
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty" style="color:var(--warn)">${esc(e.message)}</div>`;
+    }
+  }
+
+  function buildAdminSubRow(row) {
+    const div = document.createElement('div');
+    div.className = 'admin-sub-row';
+    const status = row.status || 'pending';
+    const date = new Date(row.created_at).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `
+      <div class="admin-sub-header">
+        <span style="font-weight:600;font-size:14px">${esc(row.user_name || row.user_email || row.user_id)}</span>
+        <span class="status-badge ${status}">${status}</span>
+      </div>
+      <div class="admin-sub-details">
+        <div>📧 <strong>${esc(row.user_email || '—')}</strong></div>
+        <div>🌏 ${esc(row.country || '—')} &nbsp;·&nbsp; 💰 ${esc(row.amount_paid || '—')} via ${esc(row.payment_method || '—')}</div>
+        <div>📱 Mobile used: <strong>${esc(row.mobile_used || '—')}</strong></div>
+        <div>🕐 ${date}${row.valid_until ? ` &nbsp;·&nbsp; 📅 Valid until: <strong>${new Date(row.valid_until).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</strong>` : ''}</div>
+      </div>
+    `;
+    if (status === 'pending') {
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;flex-wrap:wrap';
+
+      const approveBtn = document.createElement('button');
+      approveBtn.textContent = '✓ Approve';
+      approveBtn.style.cssText = 'padding:7px 18px;font-size:13px';
+      approveBtn.addEventListener('click', async () => {
+        approveBtn.disabled = true;
+        try {
+          await sbFetch(`subscriptions?id=eq.${row.id}`, {
+            method: 'PATCH',
+            prefer: 'return=minimal',
+            body: JSON.stringify({
+              status: 'approved',
+              valid_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            }),
+          });
+          toast('Subscription approved — valid for 12 months');
+          loadAdminSubscriptions();
+        } catch (e) { toast('Error: ' + e.message); approveBtn.disabled = false; }
+      });
+
+      const rejectBtn = document.createElement('button');
+      rejectBtn.className = 'secondary';
+      rejectBtn.textContent = '✕ Reject';
+      rejectBtn.style.cssText = 'padding:7px 18px;font-size:13px';
+      rejectBtn.addEventListener('click', async () => {
+        if (!confirm('Reject this subscription request?')) return;
+        rejectBtn.disabled = true;
+        try {
+          await sbFetch(`subscriptions?id=eq.${row.id}`, {
+            method: 'PATCH',
+            prefer: 'return=minimal',
+            body: JSON.stringify({ status: 'rejected' }),
+          });
+          toast('Subscription rejected');
+          loadAdminSubscriptions();
+        } catch (e) { toast('Error: ' + e.message); rejectBtn.disabled = false; }
+      });
+
+      actions.appendChild(approveBtn);
+      actions.appendChild(rejectBtn);
+      div.appendChild(actions);
+    }
+    return div;
+  }
+
+  document.getElementById('refreshAdminBtn').addEventListener('click', loadAdminSubscriptions);
+
   // Show/hide cloud save panel based on tournament completion
   function cloudRender() {
     const lastRound = state.rounds[state.rounds.length - 1];
@@ -1721,9 +2145,31 @@
       if (isAuth && !_wasOver) {
         document.getElementById('cloudStatus').textContent = '';
         refreshTodayCount();
+        renderSubStatus();
       }
     }
     _wasOver = tournamentOver;
+  }
+
+  async function renderSubStatus() {
+    const el = document.getElementById('subStatusBadge');
+    if (!el || !sbSession) return;
+    const status = await checkSubscriptionStatus();
+    const fmtDate = d => d ? d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    if (status === 'approved') {
+      el.innerHTML = `✅ <span style="color:var(--accent)">Subscribed · valid until ${fmtDate(_subValidUntil)}</span>`;
+    } else if (status === 'expiring_soon') {
+      const days = Math.ceil((_subValidUntil - new Date()) / 86400000);
+      el.innerHTML = `⚠️ <span style="color:#f59e0b">Subscription expires in ${days} day${days !== 1 ? 's' : ''} (${fmtDate(_subValidUntil)}) — renew soon</span>`;
+    } else if (status === 'expired') {
+      el.innerHTML = `🔴 <span style="color:var(--warn)">Subscription expired ${fmtDate(_subValidUntil)} — renew to save again</span>`;
+    } else if (status === 'pending') {
+      el.innerHTML = '⏳ <span style="color:#f59e0b">Subscription pending approval</span>';
+    } else if (status === 'rejected') {
+      el.innerHTML = `❌ <span style="color:var(--warn)">Subscription rejected — contact ${ADMIN_EMAIL}</span>`;
+    } else {
+      el.innerHTML = '';
+    }
   }
 
   // Trigger history list load on startup (will silently fail if not configured)
