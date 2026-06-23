@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  # ── AI Video Pipeline ────────────────────────────────────────────────────
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-video-pipeline:latest
+    container_name: ai_video_pipeline
+    ports:
+      - "7860:7860"   # Gradio UI
+    volumes:
+      - ./outputs:/app/outputs          # persist generated videos
+      - ./models:/app/models            # persist downloaded models
+      - ./credentials:/app/credentials  # YouTube OAuth tokens
+      - ollama_data:/root/.ollama       # persist Ollama model weights
+    environment:
+      - OLLAMA_BASE_URL=http://localhost:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - IMAGE_BACKEND=${IMAGE_BACKEND:-sdxl}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - MUSICGEN_MODEL=${MUSICGEN_MODEL:-facebook/musicgen-small}
+      - YOUTUBE_PRIVACY=${YOUTUBE_PRIVACY:-private}
+      - INSTAGRAM_ACCESS_TOKEN=${INSTAGRAM_ACCESS_TOKEN:-}
+      - INSTAGRAM_ACCOUNT_ID=${INSTAGRAM_ACCOUNT_ID:-}
+      - SVD_ENABLED=${SVD_ENABLED:-false}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ── Ollama (standalone, optional — use if you prefer a separate container) ─
+  # Uncomment to run Ollama as a separate service and remove the built-in one:
+  #
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+
+volumes:
+  ollama_data:
