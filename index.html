@@ -2550,7 +2550,7 @@
         sbFetch('subscriptions?select=*&order=created_at.desc'),
         sbFetch('tournaments?select=id,user_id,tourney_date,created_at&order=created_at.desc'),
         sbFetch('court_members?select=*&order=joined_date.asc'),
-        sbFetch('court_bookings?select=id,user_id,booking_date,amount,type,created_at&order=created_at.desc'),
+        sbFetch('court_bookings?select=id,user_id,booking_date,total_cost,entry_type,created_at&order=created_at.desc'),
       ]);
 
       const subsArr = Array.isArray(subs) ? subs : [];
