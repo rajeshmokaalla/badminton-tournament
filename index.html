@@ -425,6 +425,15 @@
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Delete any saved tournament by date and tournament number.</p>
     <div id="adminTourneyList"><div class="empty">Loading…</div></div>
+
+    <hr style="border:none;border-top:1px solid var(--panel-2);margin:24px 0 18px">
+
+    <div class="section-title-row" style="margin-bottom:10px">
+      <h3 style="margin:0;font-size:16px">📊 User Metrics</h3>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">All users who have interacted with the app — signed-in users are tracked via Supabase; guest sessions are anonymous and counted separately where detectable.</p>
+    <div id="adminMetricsSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px"></div>
+    <div id="adminMetricsList"><div class="empty">Loading…</div></div>
   </div>
 
   <!-- Court Booking & Split Module (auth-gated, cloud-synced) -->
@@ -2124,7 +2133,7 @@
     document.getElementById('statsAuthArea').style.display = isAuth ? '' : 'none';
     const adminVisible = isAuth && isAdminUser();
     document.getElementById('adminPanel').style.display = adminVisible ? '' : 'none';
-    if (adminVisible) { loadAdminSubscriptions(); loadAdminTournaments(); }
+    if (adminVisible) { loadAdminSubscriptions(); loadAdminTournaments(); loadAdminMetrics(); }
     if (isAuth) renderSubStatus();
     initCourtModule();
     cloudRender();
@@ -2453,6 +2462,7 @@
   document.getElementById('refreshAdminBtn').addEventListener('click', () => {
     loadAdminSubscriptions();
     loadAdminTournaments();
+    loadAdminMetrics();
   });
 
   async function loadAdminTournaments() {
@@ -2525,6 +2535,176 @@
           listEl.appendChild(item);
         });
       });
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty" style="color:var(--warn)">${esc(e.message)}</div>`;
+    }
+  }
+
+  async function loadAdminMetrics() {
+    const summaryEl = document.getElementById('adminMetricsSummary');
+    const listEl = document.getElementById('adminMetricsList');
+    listEl.innerHTML = '<div class="empty">Loading…</div>';
+    summaryEl.innerHTML = '';
+    try {
+      const [subs, tourneys, courtMembers, courtBookings] = await Promise.all([
+        sbFetch('subscriptions?select=*&order=created_at.desc'),
+        sbFetch('tournaments?select=id,user_id,tourney_date,created_at&order=created_at.desc'),
+        sbFetch('court_members?select=*&order=joined_date.asc'),
+        sbFetch('court_bookings?select=id,user_id,booking_date,amount,type,created_at&order=created_at.desc'),
+      ]);
+
+      const subsArr = Array.isArray(subs) ? subs : [];
+      const tourneysArr = Array.isArray(tourneys) ? tourneys : [];
+      const courtMembersArr = Array.isArray(courtMembers) ? courtMembers : [];
+      const courtBookingsArr = Array.isArray(courtBookings) ? courtBookings : [];
+
+      // Build per-user profiles keyed by user_id
+      const userProfiles = {};
+
+      // Seed from subscriptions (most data-rich)
+      subsArr.forEach(s => {
+        const uid = s.user_id;
+        if (!uid) return;
+        if (!userProfiles[uid]) userProfiles[uid] = { uid, email: null, name: null, country: null, mobile: null, subStatus: null, validUntil: null, tourneyCount: 0, courtMember: false, courtBookingCount: 0, firstSeen: null, lastSeen: null };
+        const p = userProfiles[uid];
+        p.email = p.email || s.user_email;
+        p.name = p.name || s.user_name;
+        p.country = p.country || s.country;
+        p.mobile = p.mobile || s.mobile_used;
+        // Keep most-recent approved status; otherwise latest
+        if (!p.subStatus || s.status === 'approved') {
+          p.subStatus = s.status;
+          p.validUntil = s.valid_until;
+        }
+        const ts = s.created_at ? new Date(s.created_at) : null;
+        if (ts) {
+          if (!p.firstSeen || ts < p.firstSeen) p.firstSeen = ts;
+          if (!p.lastSeen || ts > p.lastSeen) p.lastSeen = ts;
+        }
+        p.amountPaid = (p.amountPaid || 0) + (parseFloat(s.amount_paid) || 0);
+        p.paymentMethod = p.paymentMethod || s.payment_method;
+      });
+
+      // Count tournaments per user
+      tourneysArr.forEach(t => {
+        const uid = t.user_id;
+        if (!uid) return;
+        if (!userProfiles[uid]) userProfiles[uid] = { uid, email: null, name: null, country: null, mobile: null, subStatus: null, validUntil: null, tourneyCount: 0, courtMember: false, courtBookingCount: 0, firstSeen: null, lastSeen: null };
+        const p = userProfiles[uid];
+        p.tourneyCount = (p.tourneyCount || 0) + 1;
+        const ts = t.created_at ? new Date(t.created_at) : null;
+        if (ts) {
+          if (!p.firstSeen || ts < p.firstSeen) p.firstSeen = ts;
+          if (!p.lastSeen || ts > p.lastSeen) p.lastSeen = ts;
+        }
+      });
+
+      // Mark court members / booking users
+      courtMembersArr.forEach(m => {
+        const uid = m.user_id;
+        if (!uid) return;
+        if (!userProfiles[uid]) userProfiles[uid] = { uid, email: null, name: null, country: null, mobile: null, subStatus: null, validUntil: null, tourneyCount: 0, courtMember: false, courtBookingCount: 0, firstSeen: null, lastSeen: null };
+        userProfiles[uid].courtMember = true;
+      });
+      courtBookingsArr.forEach(b => {
+        const uid = b.user_id;
+        if (!uid) return;
+        if (userProfiles[uid]) userProfiles[uid].courtBookingCount = (userProfiles[uid].courtBookingCount || 0) + 1;
+      });
+
+      const profiles = Object.values(userProfiles);
+      const totalSignedIn = profiles.length;
+      const totalApproved = profiles.filter(p => p.subStatus === 'approved').length;
+      const totalPending = profiles.filter(p => p.subStatus === 'pending').length;
+      const totalTourneys = tourneysArr.length;
+      const totalCourtBookings = courtBookingsArr.length;
+
+      // Summary stat cards
+      const stats = [
+        { label: 'Signed-In Users', value: totalSignedIn, color: 'var(--accent)' },
+        { label: 'Active Subscriptions', value: totalApproved, color: '#22c55e' },
+        { label: 'Pending Approval', value: totalPending, color: 'var(--warn)' },
+        { label: 'Total Tournaments Saved', value: totalTourneys, color: 'var(--accent)' },
+        { label: 'Court Booking Entries', value: totalCourtBookings, color: '#a78bfa' },
+      ];
+      summaryEl.innerHTML = stats.map(s => `
+        <div style="background:var(--panel-2);border-radius:10px;padding:14px 18px;min-width:130px;flex:1">
+          <div style="font-size:22px;font-weight:700;color:${s.color}">${s.value}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${s.label}</div>
+        </div>`).join('');
+
+      if (profiles.length === 0) {
+        listEl.innerHTML = '<div class="empty">No signed-in user data found. Guest-only sessions are anonymous and not tracked server-side.</div>';
+        return;
+      }
+
+      // Sort: approved first, then pending, then others; within group by lastSeen desc
+      const statusOrder = { approved: 0, pending: 1, rejected: 2 };
+      profiles.sort((a, b) => {
+        const sa = statusOrder[a.subStatus] ?? 3;
+        const sb = statusOrder[b.subStatus] ?? 3;
+        if (sa !== sb) return sa - sb;
+        return (b.lastSeen || 0) > (a.lastSeen || 0) ? 1 : -1;
+      });
+
+      listEl.innerHTML = '';
+
+      // Mode legend
+      const legend = document.createElement('div');
+      legend.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px';
+      legend.innerHTML = '🟢 Signed-in users tracked via Supabase &nbsp;·&nbsp; Guest sessions are anonymous (not listed below)';
+      listEl.appendChild(legend);
+
+      profiles.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'admin-sub-row';
+        card.style.cssText = 'margin-bottom:10px;display:flex;flex-direction:column;gap:6px';
+
+        const subBadge = p.subStatus === 'approved'
+          ? '<span style="background:#22c55e22;color:#22c55e;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">✅ Approved</span>'
+          : p.subStatus === 'pending'
+          ? '<span style="background:#f59e0b22;color:#f59e0b;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">⏳ Pending</span>'
+          : p.subStatus === 'rejected'
+          ? '<span style="background:#ef444422;color:#ef4444;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">❌ Rejected</span>'
+          : '<span style="background:var(--panel-2);color:var(--muted);border-radius:4px;padding:2px 7px;font-size:11px">No subscription</span>';
+
+        const modeBadge = '<span style="background:var(--accent)22;color:var(--accent);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">🔐 Signed In</span>';
+
+        const details = [
+          p.email ? `📧 ${esc(p.email)}` : null,
+          p.name ? `👤 ${esc(p.name)}` : null,
+          p.country ? `🌍 ${esc(p.country)}` : null,
+          p.mobile ? `📱 ${esc(p.mobile)}` : null,
+          p.amountPaid ? `💰 ₹${p.amountPaid} via ${esc(p.paymentMethod || '—')}` : null,
+          p.validUntil ? `📅 Valid until ${new Date(p.validUntil).toLocaleDateString([], { day:'numeric',month:'short',year:'numeric' })}` : null,
+        ].filter(Boolean);
+
+        const activity = [
+          `🏸 ${p.tourneyCount} tournament${p.tourneyCount !== 1 ? 's' : ''} saved`,
+          p.courtMember ? '🏟️ Court member' : null,
+          p.courtBookingCount ? `📋 ${p.courtBookingCount} court entries` : null,
+          p.firstSeen ? `First seen: ${p.firstSeen.toLocaleDateString([], { day:'numeric',month:'short',year:'numeric' })}` : null,
+          p.lastSeen ? `Last active: ${p.lastSeen.toLocaleDateString([], { day:'numeric',month:'short',year:'numeric' })}` : null,
+        ].filter(Boolean);
+
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${modeBadge} ${subBadge}
+            <span style="font-weight:600;font-size:14px">${esc(p.email || p.name || p.uid?.slice(0,8) + '…')}</span>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)">
+            <div style="display:flex;flex-direction:column;gap:3px">${details.map(d => `<span>${d}</span>`).join('')}</div>
+            <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;border-left:1px solid var(--panel-2)">${activity.map(a => `<span>${a}</span>`).join('')}</div>
+          </div>`;
+        listEl.appendChild(card);
+      });
+
+      // Guest usage note
+      const guestNote = document.createElement('div');
+      guestNote.style.cssText = 'margin-top:18px;padding:12px 16px;background:var(--panel-2);border-radius:8px;font-size:12px;color:var(--muted)';
+      guestNote.innerHTML = `<strong style="color:var(--fg)">👤 Guest Mode</strong><br>Guest sessions run entirely in the browser (localStorage) and never touch Supabase. They are anonymous by design — no server-side tracking is possible without adding an analytics layer.`;
+      listEl.appendChild(guestNote);
+
     } catch (e) {
       listEl.innerHTML = `<div class="empty" style="color:var(--warn)">${esc(e.message)}</div>`;
     }
