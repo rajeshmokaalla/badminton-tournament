@@ -810,8 +810,9 @@
     if (state.rounds.length > 0) { showError('Tournament already started'); return; }
     state.tournamentTeams = teams;
 
-    // Generate all round-robin pairs, schedule with gap constraint into one Preliminary Round
-    const allPairs = buildRoundRobinPairs(teams.length);
+    // 3 teams: double round-robin (each pair plays twice → 6 matches, no semi-final)
+    const singlePairs = buildRoundRobinPairs(teams.length);
+    const allPairs = teams.length === 3 ? [...singlePairs, ...singlePairs] : singlePairs;
     const { schedule: scheduled, violations } = scheduleWithGap(allPairs, teams.length);
     const matches = scheduled.map(([i, j]) => ({
       id: uid(),
@@ -1041,6 +1042,16 @@
       save(); render(); return;
     }
     if (teamCount === 3) {
+      // Double round-robin prelim: top 2 go straight to the final, no semi-final
+      state.knockoutByeTeams = [];
+      state.rounds.push({
+        number: state.rounds.length + 1, teams: [], phase: 'final',
+        matches: [{ id: uid(), a: teamStats[0].team, b: teamStats[1].team, games: [{a:0,b:0,finished:false}], winner: null }],
+      });
+      save(); render(); return;
+    }
+    if (teamCount === 4) {
+      // #1 gets bye to final, #4 eliminated, #2 vs #3 in semifinal
       state.knockoutByeTeams = [teamStats[0].team];
       state.rounds.push({
         number: state.rounds.length + 1, teams: [], phase: 'semi',
@@ -1099,14 +1110,13 @@
       { label: 'Final', sub: '1 match', desc: '#1 vs #2' },
     ];
     if (n === 3) return [
-      prelim,
-      { label: 'Semifinal', sub: '1 match', desc: '#2 vs #3\n#1 gets a bye' },
-      { label: 'Final', sub: '1 match', desc: 'Semi winner vs #1' },
+      { label: 'Preliminary Round', sub: '3 teams · 6 matches', desc: 'Double round-robin\nEach pair plays twice\nTop 2 advance' },
+      { label: 'Final', sub: '1 match', desc: '#1 vs #2' },
     ];
     if (n === 4) return [
       prelim,
-      { label: 'Semifinal', sub: '2 matches', desc: '#1 vs #4\n#2 vs #3' },
-      { label: 'Final', sub: '1 match', desc: 'Both semi winners' },
+      { label: 'Semifinal', sub: '1 match', desc: '#2 vs #3\n#1 gets a bye · #4 out' },
+      { label: 'Final', sub: '1 match', desc: 'Semi winner vs #1' },
     ];
     if (n === 5) return [
       prelim,
@@ -1130,7 +1140,8 @@
     if (last.phase === 'group') return 0;
     if (last.phase === 'final') {
       if (n === 2) return 0;
-      if (n <= 4) return 2;
+      if (n === 3) return 1; // prelim(0) + final(1)
+      if (n === 4) return 2; // prelim(0) + semi(1) + final(2)
       return 3; // 5+ teams have 4 stages
     }
     if (last.phase === 'semi' || last.phase === 'knockout') return 1;
