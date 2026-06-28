@@ -303,13 +303,8 @@
         <div class="team-builder" id="teamBuilder"></div>
 
         <div class="player-pool">
-          <div class="player-pool-title">Unassigned players — click a player, then click a team slot to assign:</div>
+          <div class="player-pool-title">Players — use the dropdown in each team slot to assign:</div>
           <div class="player-pool-list" id="playerPool"></div>
-          <div class="team-assign-row" id="assignRow" style="display:none">
-            <label id="assignLabel">Assign <b id="assignPlayerName"></b> to:</label>
-            <div class="assign-btns" id="assignBtns"></div>
-            <button class="secondary" style="padding:5px 10px;font-size:12px" id="cancelAssign">Cancel</button>
-          </div>
         </div>
 
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
@@ -641,8 +636,6 @@
 
   let state = load();
 
-  // ── selected player in manual builder ──
-  let selectedPoolPlayer = null;
   // ── currently viewed history date (for share/QR) ──
   let currentHistoryDate = null;
 
@@ -770,13 +763,7 @@
 
   document.getElementById('clearTeamsBtn').addEventListener('click', () => {
     state.manualTeams = state.manualTeams.map(() => []);
-    selectedPoolPlayer = null;
     save();
-    render();
-  });
-
-  document.getElementById('cancelAssign').addEventListener('click', () => {
-    selectedPoolPlayer = null;
     render();
   });
 
@@ -1422,7 +1409,6 @@
   function renderManualBuilder() {
     const builder = document.getElementById('teamBuilder');
     const pool = document.getElementById('playerPool');
-    const assignRow = document.getElementById('assignRow');
     const maxPPT = maxPlayersPerTeam();
 
     // Update team count input
@@ -1461,7 +1447,6 @@
           pDiv.innerHTML = `<span>${esc(p)}</span><button title="Remove from team">×</button>`;
           pDiv.querySelector('button').addEventListener('click', () => {
             state.manualTeams[tIdx].splice(pIdx, 1);
-            selectedPoolPlayer = null;
             save(); render();
           });
           playersDiv.appendChild(pDiv);
@@ -1471,17 +1456,30 @@
       slot.appendChild(titleRow);
       slot.appendChild(playersDiv);
 
-      // Click slot to assign selected player
-      if (!isFull && selectedPoolPlayer && !assignedPlayers.has(selectedPoolPlayer)) {
-        const hint = document.createElement('div');
-        hint.style.cssText = 'margin-top:8px;font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline';
-        hint.textContent = `+ Add ${selectedPoolPlayer} here`;
-        hint.addEventListener('click', () => {
-          state.manualTeams[tIdx].push(selectedPoolPlayer);
-          selectedPoolPlayer = null;
-          save(); render();
-        });
-        slot.appendChild(hint);
+      // Dropdown to assign a player to this slot
+      if (!isFull) {
+        const unassignedForSlot = state.players.filter(p => !assignedPlayers.has(p));
+        if (unassignedForSlot.length > 0) {
+          const sel = document.createElement('select');
+          sel.style.cssText = 'margin-top:8px;width:100%;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--fg);font-size:13px;cursor:pointer';
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = '+ Add player…';
+          sel.appendChild(placeholder);
+          unassignedForSlot.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            sel.appendChild(opt);
+          });
+          sel.addEventListener('change', () => {
+            if (sel.value) {
+              state.manualTeams[tIdx].push(sel.value);
+              save(); render();
+            }
+          });
+          slot.appendChild(sel);
+        }
       }
 
       grid.appendChild(slot);
@@ -1489,48 +1487,15 @@
 
     builder.appendChild(grid);
 
-    // Player pool
+    // Player pool (read-only status pills)
     pool.innerHTML = '';
-    const unassigned = state.players.filter(p => !assignedPlayers.has(p));
     state.players.forEach(p => {
       const pill = document.createElement('span');
       pill.className = 'pool-pill';
-      const isAssigned = assignedPlayers.has(p);
-      const isSelected = selectedPoolPlayer === p;
-      if (isAssigned) pill.classList.add('assigned');
-      if (isSelected) pill.classList.add('selected');
+      if (assignedPlayers.has(p)) pill.classList.add('assigned');
       pill.textContent = p;
-      if (!isAssigned) {
-        pill.addEventListener('click', () => {
-          selectedPoolPlayer = selectedPoolPlayer === p ? null : p;
-          render();
-        });
-      }
       pool.appendChild(pill);
     });
-
-    // Assign row
-    if (selectedPoolPlayer && !assignedPlayers.has(selectedPoolPlayer)) {
-      assignRow.style.display = 'flex';
-      document.getElementById('assignPlayerName').textContent = selectedPoolPlayer;
-      const btns = document.getElementById('assignBtns');
-      btns.innerHTML = '';
-      state.manualTeams.forEach((team, tIdx) => {
-        if (team.length < maxPPT) {
-          const btn = document.createElement('button');
-          btn.className = 'secondary assign-btn';
-          btn.textContent = `Team ${tIdx + 1}`;
-          btn.addEventListener('click', () => {
-            state.manualTeams[tIdx].push(selectedPoolPlayer);
-            selectedPoolPlayer = null;
-            save(); render();
-          });
-          btns.appendChild(btn);
-        }
-      });
-    } else {
-      assignRow.style.display = 'none';
-    }
 
     // Enable start button when at least 2 teams have players
     const validTeams = state.manualTeams.filter(t => t.length > 0);
