@@ -17,19 +17,29 @@ jobs:
           fi
 
       - name: Trigger badmintonAppRegression workflow
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
+          payload=$(jq -n \
+            --arg event_type "app-deployed" \
+            --arg source_repo "${{ github.event.repository.name }}" \
+            --arg commit_sha "${{ github.sha }}" \
+            --arg commit_message "$COMMIT_MESSAGE" \
+            --arg triggered_by "${{ github.actor }}" \
+            '{
+              event_type: $event_type,
+              client_payload: {
+                source_repo: $source_repo,
+                commit_sha: $commit_sha,
+                commit_message: $commit_message,
+                triggered_by: $triggered_by
+              }
+            }')
+
           curl -f -X POST \
             -H "Authorization: Bearer ${{ secrets.REGRESSION_PAT }}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/rajeshmokaalla/badmintonAppRegression/dispatches \
-            -d '{
-              "event_type": "app-deployed",
-              "client_payload": {
-                "source_repo": "${{ github.event.repository.name }}",
-                "commit_sha": "${{ github.sha }}",
-                "commit_message": "${{ github.event.head_commit.message }}",
-                "triggered_by": "${{ github.actor }}"
-              }
-            }'
+            -d "$payload"
           echo "Regression dispatch sent for commit ${{ github.sha }}"
