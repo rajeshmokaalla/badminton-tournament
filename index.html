@@ -3287,9 +3287,10 @@
     const section = document.getElementById('cbArchiveSection');
     const list    = document.getElementById('cbArchiveList');
     try {
-      const rows = await sbFetch(
-        `court_archives?user_id=eq.${sbSession.user.id}&order=archived_at.desc&limit=50`
-      );
+      const query = isAdminUser()
+        ? `court_archives?order=archived_at.desc&limit=200`
+        : `court_archives?user_id=eq.${sbSession.user.id}&order=archived_at.desc&limit=50`;
+      const rows = await sbFetch(query);
       if (!rows || !rows.length) { section.style.display = 'none'; return; }
       section.style.display = '';
       list.innerHTML = '';
