@@ -507,10 +507,6 @@
     <div class="cb-section" id="cbSplitSection" style="display:none">
       <div class="cb-section-title">💰 Split Summary <span id="cbSplitMonthLabel" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
       <div id="cbSplitArea"></div>
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #334155">
-        <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Once all members have settled their payments, click below to mark as settled and clear all booking data.</p>
-        <button id="cbSettleBtn" style="background:#16a34a;border-color:#16a34a">✅ Mark as Settled &amp; Reset</button>
-      </div>
     </div>
   </div>
 
@@ -2728,10 +2724,11 @@
   // ─────────────────────────────────────────────
   // Court Booking & Split — Supabase-backed
   // ─────────────────────────────────────────────
-  let cbMembers     = [];   // [{id, user_id, name, joined_date, created_at}]
-  let cbBookings    = [];   // month-filtered [{id, …}]
-  let cbEditingId   = null; // booking being edited inline
-  let cbViewMonth   = '';   // YYYY-MM currently loaded
+  let cbMembers     = [];        // [{id, user_id, name, joined_date, created_at}]
+  let cbBookings    = [];        // month-filtered [{id, …}]
+  let cbEditingId   = null;      // booking being edited inline
+  let cbViewMonth   = '';        // YYYY-MM currently loaded
+  let cbSettledKeys = new Set(); // settlement keys marked as settled this session
 
   function cbFmt(n) {
     return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3196,44 +3193,61 @@
       heading.textContent = 'Who pays whom';
       splitArea.appendChild(heading);
       split.settlements.forEach(s => {
+        const key = `${s.from}|${s.to}`;
+        const settled = cbSettledKeys.has(key);
         const row = document.createElement('div');
         row.className = 'cb-settlement';
-        row.innerHTML = `<span class="s-from">${esc(s.from)}</span> <span style="color:var(--muted)">pays</span> <span class="s-to">${esc(s.to)}</span> <span style="color:var(--muted)">→</span> <span class="s-amt">${cbFmt(s.amount)}</span>`;
+        row.style.opacity = settled ? '0.5' : '';
+        row.innerHTML = `
+          <span class="s-from">${esc(s.from)}</span>
+          <span style="color:var(--muted)">pays</span>
+          <span class="s-to">${esc(s.to)}</span>
+          <span style="color:var(--muted)">→</span>
+          <span class="s-amt">${cbFmt(s.amount)}</span>
+          <button data-key="${esc(key)}" style="margin-left:auto;padding:4px 10px;font-size:12px;${settled ? 'background:#16a34a;border-color:#16a34a' : 'background:var(--panel-2);border-color:var(--muted);color:var(--fg)'}">${settled ? '✅ Settled' : 'Mark Settled'}</button>`;
+        row.querySelector('button').addEventListener('click', async () => {
+          if (settled) return;
+          cbSettledKeys.add(key);
+          renderCB();
+          if (cbSettledKeys.size >= split.settlements.length) {
+            await cbSettleAndReset(true);
+          }
+        });
         splitArea.appendChild(row);
       });
+    } else if (!split.balances.some(b => Math.abs(b.balance) > 0.005)) {
+      // Everyone is already even — no transfers needed, offer reset
+      const allEven = document.createElement('div');
+      allEven.style.cssText = 'margin-top:16px;padding-top:16px;border-top:1px solid #334155';
+      allEven.innerHTML = `<p style="font-size:13px;color:var(--muted);margin:0 0 10px">All balances are even — no transfers needed.</p>
+        <button id="cbSettleBtn" style="background:#16a34a;border-color:#16a34a">✅ Reset Split Data</button>`;
+      allEven.querySelector('#cbSettleBtn').addEventListener('click', () => cbSettleAndReset(false));
+      splitArea.appendChild(allEven);
     }
   }
 
   // ── Settle & Reset ──
-  document.getElementById('cbSettleBtn').addEventListener('click', cbSettleAndReset);
-
-  async function cbSettleAndReset() {
+  async function cbSettleAndReset(auto = false) {
     if (!sbSession) return;
-    const split = computeCBSplit();
-    let confirmMsg = 'Mark all payments as settled and delete all booking data?\n\nThis will permanently remove all court bookings and expenses. Group members will be kept.\n';
-    if (split && split.settlements.length) {
-      confirmMsg += '\nPending transfers to complete before settling:\n';
-      split.settlements.forEach(s => { confirmMsg += `  • ${s.from} → ${s.to}: ${cbFmt(s.amount)}\n`; });
+    const msg = auto
+      ? 'All members have settled! Delete all booking data now?\n\nGroup members will be kept. This cannot be undone.'
+      : 'Delete all booking data?\n\nGroup members will be kept. This cannot be undone.';
+    if (!confirm(msg)) {
+      cbSettledKeys.clear();
+      renderCB();
+      return;
     }
-    confirmMsg += '\nThis cannot be undone.';
-    if (!confirm(confirmMsg)) return;
-
-    const btn = document.getElementById('cbSettleBtn');
-    btn.disabled = true;
-    btn.textContent = 'Settling…';
     try {
-      // Delete all court_bookings for this user
       await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}`, { method: 'DELETE', prefer: 'return=minimal' });
       cbBookings = [];
       cbEditingId = null;
+      cbSettledKeys.clear();
       renderCB();
       document.getElementById('cbMonthLoadStatus').textContent = '';
       toast('✅ Settled! All booking data has been cleared.');
     } catch (e) {
+      cbSettledKeys.clear();
       toast('Error during settlement: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '✅ Mark as Settled & Reset';
     }
   }
 
