@@ -2754,10 +2754,11 @@
 
   // Does member (by name) owe money in any booking (is a participant but not the payer)?
   function cbMemberHasPending(name) {
-    return cbBookings.some(b => {
-      const am = b.active_members || [];
-      return am.some(m => m.name === name) && b.paid_by !== name;
-    });
+    if (!cbBookings.length) return false;
+    const split = computeCBSplit();
+    if (!split) return false;
+    const bal = split.balances.find(b => b.name === name);
+    return bal ? Math.abs(bal.balance) > 0.005 : false;
   }
 
   // ── Supabase CRUD ──
@@ -2880,12 +2881,12 @@
 
   async function cbRemoveMember(member) {
     if (cbMemberHasPending(member.name)) {
-      const pendingAmt = cbBookings.reduce((sum, b) => {
-        const am = b.active_members || [];
-        if (!am.some(m => m.name === member.name) || b.paid_by === member.name) return sum;
-        return sum + (am.length ? b.total_cost / am.length : 0);
-      }, 0);
-      alert(`⚠️ ${member.name} has ${cbFmt(pendingAmt)} in unsettled payments.\n\nPlease settle their pending amounts before removing them from the group.`);
+      const split = computeCBSplit();
+      const bal = split?.balances.find(b => b.name === member.name);
+      const direction = bal && bal.balance > 0
+        ? `is owed ${cbFmt(bal.balance)} — collect payment first`
+        : `owes ${cbFmt(bal ? -bal.balance : 0)} — must pay before being removed`;
+      alert(`⚠️ ${member.name} has an unsettled balance and ${direction}.\n\nSettle all split amounts before removing this member.`);
       return;
     }
     if (!confirm(`Remove ${member.name} from the group?`)) return;
