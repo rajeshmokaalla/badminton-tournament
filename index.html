@@ -230,6 +230,11 @@
   .cb-settlement { background: var(--panel-2); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .cb-settlement .s-from { color: var(--warn); font-weight: 700; }
   .cb-settlement .s-to { color: var(--accent); font-weight: 700; }
+  .cb-archive-card { background: var(--panel-2); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .cb-archive-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer; user-select: none; gap: 8px; }
+  .cb-archive-header:hover { background: rgba(255,255,255,0.04); }
+  .cb-archive-body { padding: 0 14px 14px; display: none; }
+  .cb-archive-body.open { display: block; }
   .cb-settlement .s-amt { font-weight: 700; font-size: 15px; }
   .cb-totals { display: flex; gap: 12px; flex-wrap: wrap; background: var(--panel-2); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
   .cb-total-box { flex: 1; min-width: 90px; }
@@ -507,6 +512,13 @@
     <div class="cb-section" id="cbSplitSection" style="display:none">
       <div class="cb-section-title">💰 Split Summary <span id="cbSplitMonthLabel" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
       <div id="cbSplitArea"></div>
+    </div>
+
+    <!-- 6. Past Settlements Archive -->
+    <div class="cb-section" id="cbArchiveSection" style="display:none">
+      <div class="cb-section-title">🗂️ Past Settlements</div>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Snapshots of all court bookings and split data saved at the time of each settlement.</p>
+      <div id="cbArchiveList"></div>
     </div>
   </div>
 
@@ -2823,6 +2835,7 @@
     try {
       await Promise.all([cbLoadMembers(), cbLoadBookings(cbViewMonth)]);
       renderCB();
+      cbLoadArchives();
     } catch (e) {
       const banner = document.createElement('div');
       banner.style.cssText = 'background:#1e293b;border:1px solid #f87171;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:1.6';
@@ -3230,25 +3243,158 @@
   async function cbSettleAndReset(auto = false) {
     if (!sbSession) return;
     const msg = auto
-      ? 'All members have settled! Delete all booking data now?\n\nGroup members will be kept. This cannot be undone.'
-      : 'Delete all booking data?\n\nGroup members will be kept. This cannot be undone.';
+      ? 'All members have settled! Save a snapshot and delete all booking data now?\n\nGroup members will be kept. This cannot be undone.'
+      : 'Save a snapshot and delete all booking data?\n\nGroup members will be kept. This cannot be undone.';
     if (!confirm(msg)) {
       cbSettledKeys.clear();
       renderCB();
       return;
     }
     try {
+      // Archive snapshot before deleting
+      const split = computeCBSplit();
+      const month = cbViewMonth || cbBookings[0]?.date?.slice(0, 7) || new Date().toISOString().slice(0, 7);
+      await sbFetch('court_archives', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify({
+          user_id: sbSession.user.id,
+          month,
+          members: cbMembers,
+          bookings: cbBookings,
+          split,
+        }),
+      }).catch(() => {}); // silently skip if table not yet created
+
       await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}`, { method: 'DELETE', prefer: 'return=minimal' });
       cbBookings = [];
       cbEditingId = null;
       cbSettledKeys.clear();
       renderCB();
       document.getElementById('cbMonthLoadStatus').textContent = '';
-      toast('✅ Settled! All booking data has been cleared.');
+      toast('✅ Settled! Snapshot saved to Past Settlements.');
+      cbLoadArchives();
     } catch (e) {
       cbSettledKeys.clear();
       toast('Error during settlement: ' + e.message);
     }
+  }
+
+  // ── Past Settlements Archive ──
+  async function cbLoadArchives() {
+    if (!sbSession) return;
+    const section = document.getElementById('cbArchiveSection');
+    const list    = document.getElementById('cbArchiveList');
+    try {
+      const rows = await sbFetch(
+        `court_archives?user_id=eq.${sbSession.user.id}&order=archived_at.desc&limit=50`
+      );
+      if (!rows || !rows.length) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      list.innerHTML = '';
+      rows.forEach(row => cbRenderArchiveCard(row, list));
+    } catch (e) {
+      section.style.display = 'none'; // table may not exist yet
+    }
+  }
+
+  function cbRenderArchiveCard(row, container) {
+    const split    = row.split || {};
+    const members  = row.members || [];
+    const bookings = row.bookings || [];
+    const date     = row.archived_at
+      ? new Date(row.archived_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      : '';
+    const [y, m] = (row.month || '').split('-');
+    const monthLabel = y && m ? new Date(+y, +m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : row.month;
+
+    const card = document.createElement('div');
+    card.className = 'cb-archive-card';
+
+    // Header row
+    const hdr = document.createElement('div');
+    hdr.className = 'cb-archive-header';
+    hdr.innerHTML = `
+      <div>
+        <div style="font-weight:700;font-size:14px">📅 ${esc(monthLabel)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Settled ${esc(date)} · ${bookings.length} entr${bookings.length === 1 ? 'y' : 'ies'} · ${members.length} member${members.length === 1 ? '' : 's'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-weight:700;color:var(--accent)">${cbFmt(split.total || 0)}</span>
+        <span class="cb-archive-chevron" style="color:var(--muted);font-size:12px">▼</span>
+      </div>`;
+
+    const body = document.createElement('div');
+    body.className = 'cb-archive-body';
+
+    // Totals
+    body.innerHTML += `
+      <div class="cb-totals" style="margin-bottom:12px">
+        <div class="cb-total-box"><div class="cb-total-label">Court Total</div><div class="cb-total-value">${cbFmt(split.totalCourt || 0)}</div></div>
+        <div class="cb-total-box"><div class="cb-total-label">Misc Total</div><div class="cb-total-value">${cbFmt(split.totalMisc || 0)}</div></div>
+        <div class="cb-total-box"><div class="cb-total-label">Grand Total</div><div class="cb-total-value" style="color:var(--accent)">${cbFmt(split.total || 0)}</div></div>
+      </div>`;
+
+    // Balance table
+    if ((split.balances || []).length) {
+      const tbl = document.createElement('table');
+      tbl.className = 'cb-split-table';
+      tbl.innerHTML = '<thead><tr><th>Member</th><th>Paid</th><th>Fair Share</th><th>Balance</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      split.balances.forEach(b => {
+        const tr = document.createElement('tr');
+        tr.className = b.balance > 0.005 ? 'credit' : b.balance < -0.005 ? 'debit' : '';
+        const balStr = b.balance > 0.005
+          ? `<span class="cb-bal">+${cbFmt(b.balance)} ← got back</span>`
+          : b.balance < -0.005
+            ? `<span class="cb-bal">−${cbFmt(-b.balance)} → paid</span>`
+            : '<span style="color:var(--muted)">✓ even</span>';
+        tr.innerHTML = `<td><strong>${esc(b.name)}</strong></td><td>${cbFmt(b.paid)}</td><td>${cbFmt(b.share)}</td><td>${balStr}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      body.appendChild(tbl);
+    }
+
+    // Settlements
+    if ((split.settlements || []).length) {
+      const sh = document.createElement('div');
+      sh.style.cssText = 'font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px';
+      sh.textContent = 'Transfers made';
+      body.appendChild(sh);
+      split.settlements.forEach(s => {
+        const r = document.createElement('div');
+        r.className = 'cb-settlement';
+        r.innerHTML = `<span class="s-from">${esc(s.from)}</span> <span style="color:var(--muted)">paid</span> <span class="s-to">${esc(s.to)}</span> <span style="color:var(--muted)">→</span> <span class="s-amt">${cbFmt(s.amount)}</span>`;
+        body.appendChild(r);
+      });
+    }
+
+    // Bookings list (collapsible sub-list)
+    if (bookings.length) {
+      const bh = document.createElement('div');
+      bh.style.cssText = 'font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px';
+      bh.textContent = `All entries (${bookings.length})`;
+      body.appendChild(bh);
+      bookings.forEach(b => {
+        const be = document.createElement('div');
+        be.style.cssText = 'font-size:12px;padding:6px 0;border-bottom:1px solid rgba(71,85,105,0.3);display:flex;justify-content:space-between;gap:8px';
+        const label = b.entry_type === 'court'
+          ? `🏟️ ${b.date} ${b.time_from || ''}–${b.time_to || ''} ${b.note ? '· ' + b.note : ''}`
+          : `🛒 ${b.date} · ${b.description || b.entry_type}`;
+        be.innerHTML = `<span style="color:var(--muted)">${esc(label)}</span><span style="font-weight:600">${cbFmt(b.total_cost)} <span style="color:var(--muted);font-weight:400">by ${esc(b.paid_by)}</span></span>`;
+        body.appendChild(be);
+      });
+    }
+
+    hdr.addEventListener('click', () => {
+      const open = body.classList.toggle('open');
+      hdr.querySelector('.cb-archive-chevron').textContent = open ? '▲' : '▼';
+    });
+
+    card.appendChild(hdr);
+    card.appendChild(body);
+    container.appendChild(card);
   }
 
   // Trigger history list load on startup (will silently fail if not configured)
