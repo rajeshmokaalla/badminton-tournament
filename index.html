@@ -2888,7 +2888,7 @@
   document.getElementById('cbClearMonthBtn').addEventListener('click', () => {
     cbBookings = [];
     cbEditingId = null;
-    cbClearSettledKeys();
+    cbSettledKeys = new Set(); // reset in-memory only, localStorage entry kept intact
     document.getElementById('cbMonthEntries').innerHTML = '';
     document.getElementById('cbMonthLoadStatus').textContent = '';
     document.getElementById('cbSplitSection').style.display = 'none';
