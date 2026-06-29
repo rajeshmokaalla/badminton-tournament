@@ -2775,7 +2775,12 @@
     const split = computeCBSplit();
     if (!split) return false;
     const bal = split.balances.find(b => b.name === name);
-    return bal ? Math.abs(bal.balance) > 0.005 : false;
+    if (!bal || Math.abs(bal.balance) <= 0.005) return false;
+    // Member has a non-zero balance — check if all settlements involving them are marked settled
+    const theirSettlements = split.settlements.filter(s => s.from === name || s.to === name);
+    const allMarked = theirSettlements.length > 0 &&
+      theirSettlements.every(s => cbSettledKeys.has(`${s.from}|${s.to}`));
+    return !allMarked;
   }
 
   // ── Supabase CRUD ──
