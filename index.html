@@ -3324,6 +3324,29 @@
         <span class="cb-archive-chevron" style="color:var(--muted);font-size:12px">▼</span>
       </div>`;
 
+    if (isAdminUser()) {
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '🗑️ Delete';
+      delBtn.style.cssText = 'padding:4px 10px;font-size:12px;background:#7f1d1d;border-color:#b91c1c;color:#fca5a5;flex-shrink:0';
+      delBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm(`Delete the settlement archive for ${monthLabel}?\n\nThis cannot be undone.`)) return;
+        delBtn.disabled = true;
+        delBtn.textContent = 'Deleting…';
+        try {
+          await sbFetch(`court_archives?id=eq.${row.id}`, { method: 'DELETE', prefer: 'return=minimal' });
+          card.remove();
+          const list = document.getElementById('cbArchiveList');
+          if (list && !list.children.length) document.getElementById('cbArchiveSection').style.display = 'none';
+        } catch (err) {
+          toast('Error deleting archive: ' + err.message);
+          delBtn.disabled = false;
+          delBtn.textContent = '🗑️ Delete';
+        }
+      });
+      hdr.appendChild(delBtn);
+    }
+
     const body = document.createElement('div');
     body.className = 'cb-archive-body';
 
