@@ -48,11 +48,6 @@ YOUTUBE_TOKEN_FILE = os.getenv("YOUTUBE_TOKEN_FILE", str(BASE_DIR / "credentials
 YOUTUBE_CATEGORY_ID = os.getenv("YOUTUBE_CATEGORY_ID", "22")    # People & Blogs
 YOUTUBE_PRIVACY = os.getenv("YOUTUBE_PRIVACY", "private")        # private|unlisted|public
 
-# ── Instagram / Meta Graph API ────────────────────────────────────────────────
-INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
-INSTAGRAM_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
-META_API_VERSION = os.getenv("META_API_VERSION", "v21.0")
-
 # ── Output paths ──────────────────────────────────────────────────────────────
 SCRIPTS_DIR = OUTPUTS_DIR / "scripts"
 AUDIO_DIR = OUTPUTS_DIR / "audio"

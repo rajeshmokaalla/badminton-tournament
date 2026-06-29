@@ -52,8 +52,6 @@ def generate_video(
     topic: str,
     style: str,
     upload_yt: bool,
-    upload_ig: bool,
-    ig_video_url: str,
     progress=gr.Progress(track_tqdm=True),
 ) -> tuple:
     """
@@ -142,7 +140,7 @@ def generate_video(
         )
         log(f"      Output: {output_path}")
 
-        # ── Uploads ───────────────────────────────────────────────────────
+        # ── YouTube upload ─────────────────────────────────────────────────────
         upload_results = []
         if upload_yt:
             progress(0.92, desc="Uploading to YouTube …")
@@ -161,19 +159,6 @@ def generate_video(
             except Exception as e:
                 upload_results.append(f"YouTube FAILED: {e}")
                 log(f"YouTube error: {e}")
-
-        if upload_ig and ig_video_url.strip():
-            progress(0.96, desc="Uploading to Instagram …")
-            try:
-                from uploaders import InstagramUploader
-                ig = InstagramUploader()
-                caption = f"{script.title}\n\n" + " ".join(f"#{t}" for t in script.hashtags)
-                media_id = ig.upload_reel(ig_video_url.strip(), caption=caption)
-                upload_results.append(f"Instagram media_id: {media_id}")
-                log(f"Instagram uploaded: {media_id}")
-            except Exception as e:
-                upload_results.append(f"Instagram FAILED: {e}")
-                log(f"Instagram error: {e}")
 
         progress(1.0, desc="Done!")
         status = f"Video ready: {output_path.name}"
@@ -210,7 +195,7 @@ def create_app() -> gr.Blocks:
         gr.Markdown(
             """
             # AI Video Generation Pipeline
-            Generate viral YouTube Shorts & Instagram Reels from any topic.
+            Generate viral YouTube Shorts from any topic — fully automated.
 
             **Stack:** Llama/Qwen · Piper TTS · MusicGen · SDXL/FLUX · Whisper · FFmpeg
             """
@@ -237,12 +222,6 @@ def create_app() -> gr.Blocks:
 
                 with gr.Accordion("Upload settings (optional)", open=False):
                     upload_yt = gr.Checkbox(label="Upload to YouTube Shorts", value=False)
-                    upload_ig = gr.Checkbox(label="Upload to Instagram Reels", value=False)
-                    ig_video_url = gr.Textbox(
-                        label="Public video URL for Instagram",
-                        placeholder="https://…/video.mp4  (required for Instagram)",
-                        info="Meta API requires a public HTTPS URL to fetch the video.",
-                    )
 
                 generate_btn = gr.Button("Generate Video", variant="primary", size="lg")
 
@@ -255,7 +234,7 @@ def create_app() -> gr.Blocks:
 
         generate_btn.click(
             fn=generate_video,
-            inputs=[topic_input, style_input, upload_yt, upload_ig, ig_video_url],
+            inputs=[topic_input, style_input, upload_yt],
             outputs=[status_output, video_output, log_output],
         )
 
@@ -263,9 +242,8 @@ def create_app() -> gr.Blocks:
             """
             ### Notes
             - First run downloads model weights (~2–10 GB depending on backend).
-            - YouTube upload requires `credentials/youtube_client_secrets.json`.
-            - Instagram upload requires `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` in `.env`.
-            - Set `IMAGE_BACKEND=flux` in `.env` for higher quality (needs more VRAM).
+            - YouTube upload requires `credentials/youtube_client_secrets.json` (Google Cloud OAuth).
+            - Set `IMAGE_BACKEND=flux` in `.env` for higher quality images (needs more VRAM).
             - Enable `SVD_ENABLED=true` for video animation via Stable Video Diffusion.
             """
         )

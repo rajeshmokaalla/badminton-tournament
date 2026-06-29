@@ -1,6 +1,6 @@
 # AI Video Generation Pipeline
 
-Generate unique, monetisation-ready **YouTube Shorts** and **Instagram Reels** fully automatically — from a single text prompt to a polished 9:16 MP4 with narration, music, animated visuals, and burned-in subtitles.
+Generate unique, monetisation-ready **YouTube Shorts** fully automatically — from a single text prompt to a polished 9:16 MP4 with narration, music, animated visuals, and burned-in subtitles.
 
 ```
 User Prompt
@@ -20,8 +20,7 @@ Llama/Qwen (Ollama) → script + image prompts + music prompt
       ▼
 FFmpeg — assemble: clips + narration + music + subtitles → final 9:16 MP4
       │
-      ├── YouTube Data API  → upload as Short
-      └── Meta Graph API    → upload as Reel
+      └── YouTube Data API  → upload as Short
 ```
 
 ---
@@ -38,7 +37,6 @@ FFmpeg — assemble: clips + narration + music + subtitles → final 9:16 MP4
 | Subtitles | OpenAI Whisper (local) | SRT + styled ASS |
 | Video assembly | FFmpeg | 9:16 vertical, H.264 |
 | YouTube upload | YouTube Data API v3 | OAuth 2.0, resumable |
-| Instagram upload | Meta Graph API v21 | Reels, professional account |
 | UI | Gradio | Browser-based chat interface |
 | Deployment | Docker + docker-compose | GPU-enabled |
 
@@ -49,8 +47,8 @@ FFmpeg — assemble: clips + narration + music + subtitles → final 9:16 MP4
 ### 1 — Clone & configure
 
 ```bash
-git clone https://github.com/rajeshmokaalla/badminton-tournament.git
-cd badminton-tournament/ai-video-pipeline
+git clone https://github.com/rajeshmokaalla/ai-video-pipeline.git
+cd ai-video-pipeline
 cp .env.example .env
 # Edit .env to choose your model sizes and set API keys
 ```
@@ -91,12 +89,10 @@ docker compose up --build
 ```bash
 python main.py --topic "The mystery of black holes" --style "dramatic and cinematic"
 
-# With uploads
+# With YouTube upload
 python main.py \
   --topic "5 Python tips that will change your life" \
-  --upload-youtube \
-  --upload-instagram \
-  --ig-video-url "https://your-cdn.com/video.mp4"
+  --upload-youtube
 ```
 
 ---
@@ -121,8 +117,7 @@ ai-video-pipeline/
 │   ├── subtitle_generator.py  # Whisper → SRT/ASS
 │   └── video_assembler.py     # FFmpeg final assembly
 ├── uploaders/
-│   ├── youtube_uploader.py    # YouTube Data API v3
-│   └── instagram_uploader.py  # Meta Graph API
+│   └── youtube_uploader.py    # YouTube Data API v3
 ├── ui/
 │   └── gradio_app.py          # Gradio chat interface
 ├── utils/
@@ -155,17 +150,6 @@ ai-video-pipeline/
 4. Download `client_secrets.json` → save to `credentials/youtube_client_secrets.json`.
 5. Set `YOUTUBE_PRIVACY=private` (safe default) in `.env`.
 6. On first upload, a browser window opens for OAuth consent; the token is cached for future runs.
-
----
-
-## Instagram Setup
-
-1. Create a [Meta for Developers](https://developers.facebook.com/) app.
-2. Add the **Instagram Graph API** product.
-3. Connect a **Professional Instagram account** (Creator or Business).
-4. Generate a **long-lived access token** with `instagram_basic` + `instagram_content_publish` scopes.
-5. Set `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_ACCOUNT_ID` in `.env`.
-6. For the upload, provide a **publicly accessible HTTPS URL** to the video file (use AWS S3, Cloudflare R2, or ngrok for local testing).
 
 ---
 

@@ -32,8 +32,6 @@ def run_cli(
     topic: str,
     style: str = "engaging and informative",
     upload_yt: bool = False,
-    upload_ig: bool = False,
-    ig_video_url: str = "",
 ) -> None:
     import config
     from utils.helpers import slug, ensure_ffmpeg
@@ -108,12 +106,6 @@ def run_cli(
         )
         logger.info("YouTube Shorts: https://youtube.com/shorts/%s", vid_id)
 
-    if upload_ig and ig_video_url:
-        from uploaders import InstagramUploader
-        caption = script.title + "\n\n" + " ".join(f"#{t}" for t in script.hashtags)
-        media_id = InstagramUploader().upload_reel(ig_video_url, caption=caption)
-        logger.info("Instagram Reel media_id: %s", media_id)
-
 
 def _concat_wav_cli(paths: list[Path], output: Path) -> None:
     import subprocess
@@ -139,10 +131,6 @@ def main() -> None:
                         help="Narration style")
     parser.add_argument("--upload-youtube", action="store_true",
                         help="Upload result to YouTube Shorts")
-    parser.add_argument("--upload-instagram", action="store_true",
-                        help="Upload result to Instagram Reels")
-    parser.add_argument("--ig-video-url", default="",
-                        help="Public HTTPS URL for Instagram video upload")
     parser.add_argument("--host", default="0.0.0.0", help="Gradio server host")
     parser.add_argument("--port", type=int, default=7860, help="Gradio server port")
     parser.add_argument("--share", action="store_true",
@@ -155,8 +143,6 @@ def main() -> None:
             topic=args.topic,
             style=args.style,
             upload_yt=args.upload_youtube,
-            upload_ig=args.upload_instagram,
-            ig_video_url=args.ig_video_url,
         )
     else:
         run_ui(host=args.host, port=args.port, share=args.share)
