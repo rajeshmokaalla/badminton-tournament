@@ -2740,7 +2740,24 @@
   let cbBookings    = [];        // month-filtered [{id, …}]
   let cbEditingId   = null;      // booking being edited inline
   let cbViewMonth   = '';        // YYYY-MM currently loaded
-  let cbSettledKeys = new Set(); // settlement keys marked as settled this session
+  let cbSettledKeys = new Set(); // settlement keys marked as settled (persisted per user+month)
+
+  function cbSettledStorageKey() {
+    return `cb_settled_${sbSession?.user?.id || 'anon'}_${cbViewMonth}`;
+  }
+  function cbLoadSettledKeys() {
+    try {
+      const raw = localStorage.getItem(cbSettledStorageKey());
+      cbSettledKeys = new Set(raw ? JSON.parse(raw) : []);
+    } catch { cbSettledKeys = new Set(); }
+  }
+  function cbSaveSettledKeys() {
+    try { localStorage.setItem(cbSettledStorageKey(), JSON.stringify([...cbSettledKeys])); } catch {}
+  }
+  function cbClearSettledKeys() {
+    try { localStorage.removeItem(cbSettledStorageKey()); } catch {}
+    cbSettledKeys = new Set();
+  }
 
   function cbFmt(n) {
     return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2835,6 +2852,7 @@
     if (monthEl) monthEl.value = cbViewMonth;
     try {
       await Promise.all([cbLoadMembers(), cbLoadBookings(cbViewMonth)]);
+      cbLoadSettledKeys();
       renderCB();
       cbLoadArchives();
     } catch (e) {
@@ -2855,6 +2873,7 @@
     status.textContent = 'Loading…';
     try {
       await cbLoadBookings(month);
+      cbLoadSettledKeys();
       renderCB();
       status.textContent = `${cbBookings.length} entr${cbBookings.length === 1 ? 'y' : 'ies'} loaded`;
     } catch (e) { status.textContent = ''; toast('Error: ' + e.message); }
@@ -3222,6 +3241,7 @@
         row.querySelector('button').addEventListener('click', async () => {
           if (settled) return;
           cbSettledKeys.add(key);
+          cbSaveSettledKeys();
           renderCB();
           if (cbSettledKeys.size >= split.settlements.length) {
             await cbSettleAndReset(true);
@@ -3247,7 +3267,7 @@
       ? 'All members have settled! Save a snapshot and delete all booking data now?\n\nGroup members will be kept. This cannot be undone.'
       : 'Save a snapshot and delete all booking data?\n\nGroup members will be kept. This cannot be undone.';
     if (!confirm(msg)) {
-      cbSettledKeys.clear();
+      cbClearSettledKeys();
       renderCB();
       return;
     }
@@ -3270,13 +3290,13 @@
       await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}`, { method: 'DELETE', prefer: 'return=minimal' });
       cbBookings = [];
       cbEditingId = null;
-      cbSettledKeys.clear();
+      cbClearSettledKeys();
       renderCB();
       document.getElementById('cbMonthLoadStatus').textContent = '';
       toast('✅ Settled! Snapshot saved to Past Settlements.');
       cbLoadArchives();
     } catch (e) {
-      cbSettledKeys.clear();
+      cbClearSettledKeys();
       toast('Error during settlement: ' + e.message);
     }
   }
