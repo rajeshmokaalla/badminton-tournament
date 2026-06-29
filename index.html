@@ -2780,7 +2780,7 @@
     // Member has a non-zero balance — check if all settlements involving them are marked settled
     const theirSettlements = split.settlements.filter(s => s.from === name || s.to === name);
     const allMarked = theirSettlements.length > 0 &&
-      theirSettlements.every(s => cbSettledKeys.has(`${s.from}|${s.to}`));
+      theirSettlements.every(s => cbSettledKeys.has(JSON.stringify([s.from, s.to])));
     return !allMarked;
   }
 
@@ -3241,7 +3241,7 @@
       heading.textContent = 'Who pays whom';
       splitArea.appendChild(heading);
       split.settlements.forEach(s => {
-        const key = `${s.from}|${s.to}`;
+        const key = JSON.stringify([s.from, s.to]);
         const settled = cbSettledKeys.has(key);
         const row = document.createElement('div');
         row.className = 'cb-settlement';
@@ -3282,7 +3282,6 @@
       ? 'All members have settled! Save a snapshot and delete all booking data now?\n\nGroup members will be kept. This cannot be undone.'
       : 'Save a snapshot and delete all booking data?\n\nGroup members will be kept. This cannot be undone.';
     if (!confirm(msg)) {
-      cbClearSettledKeys();
       renderCB();
       return;
     }
@@ -3290,17 +3289,23 @@
       // Archive snapshot before deleting
       const split = computeCBSplit();
       const month = cbViewMonth || cbBookings[0]?.booking_date?.slice(0, 7) || new Date().toISOString().slice(0, 7);
-      await sbFetch('court_archives', {
-        method: 'POST',
-        prefer: 'return=minimal',
-        body: JSON.stringify({
-          user_id: sbSession.user.id,
-          month,
-          members: cbMembers,
-          bookings: cbBookings,
-          split,
-        }),
-      }).catch(() => {}); // silently skip if table not yet created
+      let archiveOk = false;
+      try {
+        await sbFetch('court_archives', {
+          method: 'POST',
+          prefer: 'return=minimal',
+          body: JSON.stringify({
+            user_id: sbSession.user.id,
+            month,
+            members: cbMembers,
+            bookings: cbBookings,
+            split,
+          }),
+        });
+        archiveOk = true;
+      } catch {
+        if (!confirm('⚠️ Could not save archive snapshot (the court_archives table may not exist in Supabase).\n\nProceed anyway and delete all booking data without saving a snapshot?')) return;
+      }
 
       await sbFetch(`court_bookings?user_id=eq.${sbSession.user.id}`, { method: 'DELETE', prefer: 'return=minimal' });
       cbBookings = [];
@@ -3308,10 +3313,9 @@
       cbClearSettledKeys();
       renderCB();
       document.getElementById('cbMonthLoadStatus').textContent = '';
-      toast('✅ Settled! Snapshot saved to Past Settlements.');
-      cbLoadArchives();
+      toast(archiveOk ? '✅ Settled! Snapshot saved to Past Settlements.' : '✅ Settled! All booking data cleared (no snapshot saved).');
+      if (archiveOk) cbLoadArchives();
     } catch (e) {
-      cbClearSettledKeys();
       toast('Error during settlement: ' + e.message);
     }
   }
