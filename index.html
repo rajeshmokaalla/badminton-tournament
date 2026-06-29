@@ -3336,7 +3336,21 @@
         delBtn.disabled = true;
         delBtn.textContent = 'Deleting…';
         try {
-          await sbFetch(`court_archives?id=eq.${row.id}`, { method: 'DELETE', prefer: 'return=minimal' });
+          const res = await fetch(
+            `${SB_URL}/rest/v1/court_archives?id=eq.${encodeURIComponent(row.id)}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': `Bearer ${sbSession.access_token}`,
+                'Prefer': 'count=exact',
+              },
+            }
+          );
+          const count = parseInt(res.headers.get('Content-Range')?.split('/')[1] ?? '0', 10);
+          if (!res.ok || count === 0) {
+            throw new Error('Delete was blocked — add admin delete RLS policy in Supabase (see README).');
+          }
           card.remove();
           const list = document.getElementById('cbArchiveList');
           if (list && !list.children.length) document.getElementById('cbArchiveSection').style.display = 'none';
