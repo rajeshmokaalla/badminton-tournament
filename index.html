@@ -503,6 +503,7 @@
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
         <input type="month" id="cbViewMonth" class="cb-date-input" style="flex:0 0 auto" />
         <button id="cbLoadMonthBtn">Load</button>
+        <button id="cbClearMonthBtn" style="background:var(--panel-2);border-color:#475569;color:var(--muted)">Clear</button>
         <span id="cbMonthLoadStatus" style="font-size:12px;color:var(--muted)"></span>
       </div>
       <div id="cbMonthEntries" style="margin-top:12px"></div>
@@ -2882,6 +2883,15 @@
       renderCB();
       status.textContent = `${cbBookings.length} entr${cbBookings.length === 1 ? 'y' : 'ies'} loaded`;
     } catch (e) { status.textContent = ''; toast('Error: ' + e.message); }
+  });
+
+  document.getElementById('cbClearMonthBtn').addEventListener('click', () => {
+    cbBookings = [];
+    cbEditingId = null;
+    cbClearSettledKeys();
+    document.getElementById('cbMonthEntries').innerHTML = '';
+    document.getElementById('cbMonthLoadStatus').textContent = '';
+    document.getElementById('cbSplitSection').style.display = 'none';
   });
 
   // ── Members ──
