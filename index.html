@@ -1354,7 +1354,7 @@
 
     // Sync points input & hint
     pointsInput.value = state.pointsPerGame || 21;
-    pointsInput.disabled = state.rounds.length > 0; // lock once tournament started
+    pointsInput.disabled = state.rounds.length > 0 && !tournamentOver; // unlock after tournament ends so Play Again can use new points
     updatePointsHint();
 
     if (typeof cloudRender === 'function') cloudRender();
