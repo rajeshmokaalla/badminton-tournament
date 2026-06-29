@@ -3253,7 +3253,7 @@
     try {
       // Archive snapshot before deleting
       const split = computeCBSplit();
-      const month = cbViewMonth || cbBookings[0]?.date?.slice(0, 7) || new Date().toISOString().slice(0, 7);
+      const month = cbViewMonth || cbBookings[0]?.booking_date?.slice(0, 7) || new Date().toISOString().slice(0, 7);
       await sbFetch('court_archives', {
         method: 'POST',
         prefer: 'return=minimal',
@@ -3403,8 +3403,8 @@
         const be = document.createElement('div');
         be.style.cssText = 'font-size:12px;padding:6px 0;border-bottom:1px solid rgba(71,85,105,0.3);display:flex;justify-content:space-between;gap:8px';
         const label = b.entry_type === 'court'
-          ? `🏟️ ${b.date} ${b.time_from || ''}–${b.time_to || ''} ${b.note ? '· ' + b.note : ''}`
-          : `🛒 ${b.date} · ${b.description || b.entry_type}`;
+          ? `🏟️ ${b.booking_date} ${b.time_from || ''}–${b.time_to || ''} ${b.description ? '· ' + b.description : ''}`
+          : `🛒 ${b.booking_date} · ${b.description || b.entry_type}`;
         be.innerHTML = `<span style="color:var(--muted)">${esc(label)}</span><span style="font-weight:600">${cbFmt(b.total_cost)} <span style="color:var(--muted);font-weight:400">by ${esc(b.paid_by)}</span></span>`;
         body.appendChild(be);
       });
